@@ -5,7 +5,7 @@ An asset holder registers heirs as ENS subnames under their own name and sets a 
 - Let their ENS avatar be their selfie from selfie check?
 - Using subnames/subregistry, an heir can also allocate their assets as part of their will to another heir. In essence, another account can inherit from a heir
 - How can we prove death/demise/incapacitation?
-  - Would there be a Middleman layer? Like a Lawyer/Escrow?
+  - Would there be a Middleman layer? Like a Lawyer/Escrow? OR CHAINLINK CRE cos this is like the most important step ?
 - We are to use the WorldID Snadbox App to test Selfie Check integration E2E?
 - The Sandbox App is available via TestFlight(IOS) and private Google Track; dev's credentials are needed
 -
