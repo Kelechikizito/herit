@@ -52,5 +52,6 @@ Reference networks by alias (`forge script ... --rpc-url sepolia_eth`), not by r
 ## Conventions
 
 - Commit directly to `main`; no feature branches or PRs during the hackathon.
+- When asked to commit, stage, commit, and `git push` to `origin main` as one uninterrupted step — don't pause between the commit and the push to confirm. Only on an explicit request; never commit unprompted.
 - Write tests only when asked — the demo path takes priority.
 - `Counter.sol` / `Counter.t.sol` / `Counter.s.sol` are Foundry template scaffolding. Leave them in place.
