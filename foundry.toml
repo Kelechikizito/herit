@@ -5,6 +5,7 @@ libs = ["lib"]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts",
     "foundry-devops/=lib/foundry-devops/",
+    "@ensdomains/contracts-v2/=lib/contracts-v2/contracts/src/",
 ]
 
 [rpc_endpoints]
