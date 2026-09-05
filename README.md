@@ -9,7 +9,7 @@ An asset holder registers heirs as ENS subnames under their own name and sets a 
 - Using subnames/subregistry, an heir can also allocate their assets as part of their will to another heir. In essence, another account can inherit from an heir
 - How can we prove death/demise/incapacitation? Selfie Check from Window elapsed from grantor and A SUBNAME ACTING AS A MIDDLEMAN LAYER/ECROW/LAWYER OR EITHER
   - Would there be a Middleman layer? Like a Lawyer/Escrow? OR CHAINLINK CRE, cos this is like the most important step?
-  - Does the Middleman Layer need a Selfie Check? The only right the middleman layer has is to delegate assets. It can't spend the TOKENS.
+  - Does the Middleman Layer need a Selfie Check? The only right the middleman layer has is to delegate assets in absentia of the grantor. It can't spend the TOKENS.
   - Should the Middleman layer have an on-chain profile if it is an actual lawyer/legal practitioner?
 - Are we to use the WorldID Sandbox App to test Selfie Check integration E2E?
 - The Sandbox App is available via TestFlight(IOS) and private Google Track; dev's credentials are needed
