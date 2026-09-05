@@ -7,4 +7,8 @@ remappings = [
     "foundry-devops/=lib/foundry-devops/",
 ]
 
+[rpc_endpoints]
+sepolia_eth = "${ETH_SEPOLIA_RPC_URL}"
+worldchain_sepolia = "${WORLDCHAIN_SEPOLIA_RPC_URL}"
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

@@ -1,66 +1,10 @@
-## Foundry
+An asset holder registers heirs as ENS subnames under their own name and sets a check-in interval. They prove they are alive with a periodic Selfie Check(CONTINUITY CHECKS). Miss the window, and Enhanced Access Control(EAC) rights held by the heirs' subnames become exercisable. Heirs are themselves Selfie Check verified before they can claim.
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
-
-Foundry consists of:
-
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- Asset holder can set custom rights for ENS subanames; subname 1 can spend only 1/4 whereas subname 2 can spend 1/2 of the total allocation. subname 3 and subname 4 to share the rest. OR subanames have to have. amulti-sig before any can spend.
+- Since ENS is also an onchain profile. Link other subnames records, github, bank account ? to their ENSV2
+- Let their ENS avatar be their selfie from selfie check?
+- Using subnames/subregistry, an heir can also allocate their assets as part of their will to another heir. In essence, another account can inherit from a heir
+- How can we prove death/demise/incapacitation?
+- We are to use the WorldID Snadbox App to test Selfie Check integration E2E?
+- The Sandbox App is available via TestFlight(IOS) and private Google Track; dev's credentials are needed
+-
