@@ -13,4 +13,4 @@ An asset holder registers heirs as ENS subnames under their own name and sets a 
   - Should the Middleman layer have an on-chain profile if it is an actual lawyer/legal practitioner?
 - Are we to use the WorldID Sandbox App to test Selfie Check integration E2E?
 - The Sandbox App is available via TestFlight(IOS) and private Google Track; dev's credentials are needed
-  -@
+- 

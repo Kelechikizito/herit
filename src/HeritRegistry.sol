@@ -1,4 +1,58 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-contract HeritRegistry {}
+import {IPermissionedRegistry} from "@ensdomains/contracts-v2/registry/interfaces/IPermissionedRegistry.sol";
+import {IRegistry} from "@ensdomains/contracts-v2/registry/interfaces/IRegistry.sol";
+import {RegistryRolesLib} from "@ensdomains/contracts-v2/registry/libraries/RegistryRolesLib.sol";
+
+contract HeritRegistry {
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
+    error HeritRegistry__ZeroAddress();
+
+    /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
+    IPermissionedRegistry public immutable I_PERMISSIONED_REGISTRY;
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    constructor(IPermissionedRegistry permissionedRegistry) {
+        if (address(permissionedRegistry) == address(0)) {
+            revert HeritRegistry__ZeroAddress();
+        }
+        I_PERMISSIONED_REGISTRY = permissionedRegistry;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                           INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                      EXTERNAL VIEW/PURE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+    // To check whether a label is available for registration,
+    function isAvailable(string calldata label) public view returns (bool) {
+        IPermissionedRegistry.State memory state = I_PERMISSIONED_REGISTRY.getState(uint256(keccak256(bytes(label))));
+        return state.status == IPermissionedRegistry.Status.AVAILABLE;
+    }
+}
