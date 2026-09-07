@@ -19,6 +19,14 @@ library HeritRolesLib {
     /// @dev Nybble 43: authorizes setting `ROLE_HEIR_REGISTERED`.
     uint256 internal constant ROLE_HEIR_REGISTERED_ADMIN = ROLE_HEIR_REGISTERED << 128;
 
+    /// @dev Roles the grantor receives on their own name in registry A. Withholds
+    ///      `ROLE_SET_SUBREGISTRY` so the estate registry can never be swapped for one the grantor
+    ///      controls, `ROLE_UNREGISTER` so the name cannot be deleted out from under the heirs, and
+    ///      `ROLE_CAN_TRANSFER_ADMIN` so the estate cannot be sold. What is left lets the grantor
+    ///      point their own name at a resolver and keep it renewed.
+    uint256 internal constant GRANTOR_NAME_ROLE_BITMAP =
+        RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN | RegistryRolesLib.ROLE_RENEW;
+
     /// @dev Roles an heir receives at registration. Withholds `ROLE_CAN_TRANSFER_ADMIN` so the
     ///      slot cannot be sold, and `ROLE_HEIR_CLAIM` so unlock has something to grant.
     uint256 internal constant HEIR_REGISTRATION_ROLE_BITMAP = RegistryRolesLib.ROLE_SET_RESOLVER
