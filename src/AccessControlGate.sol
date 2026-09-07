@@ -4,7 +4,23 @@ pragma solidity 0.8.30;
 import {IPermissionedRegistry} from "@ensdomains/contracts-v2/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "@ensdomains/contracts-v2/registry/interfaces/IRegistry.sol";
 
-import {HeritRolesLib} from "./libraries/HeritRolesLib.sol";
+import {HeritRolesLib} from "src/libraries/HeritRolesLib.sol";
+import {IVerifiableFactory} from "@ensdomains/verifiable-factory/IVerifiableFactory.sol";
+import {IHeritRegistry} from "src/interfaces/IHeritRegistry.sol";
+
+// REVIEW - IMPORTS
+//
+// [1] BROKEN PATH. foundry.toml remaps `@ensdomains/contracts-v2/` to
+//     `lib/contracts-v2/contracts/src/`, so this import resolves to
+//     `lib/contracts-v2/contracts/src/lib/verifiable-factory/...`, which does not exist.
+//     The file is really at `lib/contracts-v2/contracts/lib/verifiable-factory/src/`, i.e. under
+//     `contracts/lib/`, not `contracts/src/lib/`. Fix by adding a remapping to foundry.toml:
+//         "@ensdomains/verifiable-factory/=lib/contracts-v2/contracts/lib/verifiable-factory/src/"
+//     That is the same alias the submodule itself uses, so paths match its source.
+//
+// [2] `src/libraries/HeritRolesLib.sol` works today only because Foundry falls back to the project
+//     root. `./libraries/HeritRolesLib.sol` is relative to this file and cannot break if the
+//     project layout moves. Prefer the relative form for your own files.
 
 /// @title AccessControlGate
 /// @notice The only contract in Herit that talks to ENS. Everything else deals in money and time;
@@ -31,6 +47,7 @@ contract AccessControlGate {
     error AccessControlGate__NotGrantor();
     error AccessControlGate__EstateNotFound(uint256 estateId);
     error AccessControlGate__LabelNotAvailable(string label);
+    error AccessControlGate__ZeroNode();
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -48,46 +65,105 @@ contract AccessControlGate {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    // TODO immutables, all set in the constructor:
-    //   VERIFIABLE_FACTORY   deploys a UserRegistry proxy per estate
-    //   USER_REGISTRY_IMPL   the implementation those proxies point at
-    //   GRANTOR_REGISTRY     registry A, where grantor labels live
-    //   RESOLVER             the resolver that holds heir text records
-    //   HERIT_REGISTRY       the state machine, and the only address allowed to unlock
-    //
-    // TODO storage:
-    //   mapping(uint256 estateId => address estateRegistry)
-    //
-    // Deliberately NOT stored: the grantor's address. `GRANTOR_REGISTRY.getOwner(estateId)`
-    // already knows it, and a second copy is a second thing that can go stale.
+    IVerifiableFactory public immutable I_VERIFIABLE_FACTORY;
+    address public immutable I_USER_REGISTRY_IMPL;
+    IHeritRegistry public immutable I_HERIT_REGISTRY;
+    IPermissionedRegistry public immutable I_GRANTOR_REGISTRY;
+
+    address public immutable I_RESOLVER;
+
+    /// @dev `namehash("herit.eth")`, the root of the whole tree.
+    ///      Needed because the registry addresses names by labelhash while the resolver addresses
+    ///      them by node, and a node can only be built by walking down from its parent:
+    ///          aliceNode = keccak256(I_HERIT_NODE, labelhash("alice"))
+    ///          sonNode   = keccak256(aliceNode,    labelhash("son"))
+    ///      There is no way to derive this from a label alone, so it has to be supplied.
+    bytes32 public immutable I_HERIT_NODE;
+
+    mapping(uint256 estateId => address estateRegistry) private s_estateRegistries;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    // TODO EstateOpened(estateId, grantor, estateRegistry, label)
-    // TODO HeirRegistered(estateId, heirLabelhash, heir, shareBps)
-    // TODO HeirUnlocked(estateId, heirLabelhash, heir)
+    event EstateOpened(uint256 indexed estateId, address indexed grantor, address indexed estateRegistry, string label);
+    event HeirRegistered(
+        uint256 indexed estateId, uint256 indexed heirLabelhash, address indexed heir, uint16 shareBps
+    );
+    event HeirUnlocked(uint256 indexed estateId, uint256 indexed heirLabelhash, address indexed heir);
+
     //
-    // The demo video reads these. Index what you will filter on.
+    // [13] Delete the TODO block above these now they are written.
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
+    modifier onlyHeritRegistry() {
+        if (msg.sender != address(I_HERIT_REGISTRY)) {
+            revert AccessControlGate__NotHeritRegistry();
+        }
+        _;
+    }
 
-    // TODO onlyHeritRegistry  — guards unlockHeir. Without it anyone grants themselves the claim
-    //                           role and drains an estate.
-    // TODO onlyGrantorOf(estateId) — guards registerHeir, reading the owner from GRANTOR_REGISTRY.
+    modifier onlyGrantorOf(uint256 estateId) {
+        if (msg.sender != I_GRANTOR_REGISTRY.getOwner(estateId)) {
+            revert AccessControlGate__NotGrantor();
+        }
+        _;
+    }
+
+    // [17] Delete the TODO block above these now they are written.
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    // TODO take the five addresses above, revert on any zero.
-    //
-    // Ordering problem to solve: HeritRegistry needs the gate's address and the gate needs
-    // HeritRegistry's. Options are a two-step setter locked after first use, or deploying one
-    // with a CREATE2 address computed in advance. Pick one and say why in a comment.
+    /// @param verifiableFactory Deploys a `UserRegistry` proxy per estate.
+    /// @param userRegistryImpl The implementation those proxies delegate to.
+    /// @param grantorRegistry Registry A, hanging under `herit.eth`, where grantor names live.
+    /// @param resolver Holds the `herit.relationship` and `herit.share` records on heir subnames.
+    /// @param heritRegistry The estate state machine, and the only caller permitted to unlock.
+    /// @param heritNode `namehash("herit.eth")`, the parent every grantor name descends from.
+    /// @dev `heritRegistry` is the one address that cannot exist yet when this contract is
+    ///      deployed, because `HeritRegistry` takes the gate's address in its own constructor.
+    ///      The cycle is broken with CREATE2 rather than a post-deploy setter: the deploy script
+    ///      computes `HeritRegistry`'s address in advance from the deployer, a fixed salt and the
+    ///      init code hash, then passes it here. That keeps every field `immutable`, so the
+    ///      privileged caller is fixed in bytecode at deployment and there is no window, and no
+    ///      function, through which it can ever be repointed. A setter would leave both.
+    ///
+    ///      Consequence for `script/DeployHerit.s.sol`: the gate must be deployed first, with the
+    ///      predicted address, and `HeritRegistry` must then be deployed with `CREATE2` using that
+    ///      exact salt. A mismatch bricks unlocking, so the script should assert equality before
+    ///      it broadcasts anything else.
+    constructor(
+        IVerifiableFactory verifiableFactory,
+        address userRegistryImpl,
+        IPermissionedRegistry grantorRegistry,
+        address resolver,
+        IHeritRegistry heritRegistry,
+        bytes32 heritNode
+    ) {
+        if (
+            address(verifiableFactory) == address(0) || userRegistryImpl == address(0)
+                || address(grantorRegistry) == address(0) || resolver == address(0)
+                || address(heritRegistry) == address(0)
+        ) {
+            revert AccessControlGate__ZeroAddress();
+        }
+        // Not an address, so it needs its own check. A zero node would silently write every
+        // record to the wrong place rather than reverting.
+        if (heritNode == bytes32(0)) {
+            revert AccessControlGate__ZeroNode();
+        }
+
+        I_VERIFIABLE_FACTORY = verifiableFactory;
+        I_USER_REGISTRY_IMPL = userRegistryImpl;
+        I_GRANTOR_REGISTRY = grantorRegistry;
+        I_RESOLVER = resolver;
+        I_HERIT_REGISTRY = heritRegistry;
+        I_HERIT_NODE = heritNode;
+    }
 
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
