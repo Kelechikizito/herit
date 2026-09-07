@@ -6,7 +6,7 @@ remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts",
     "foundry-devops/=lib/foundry-devops/",
     "@ensdomains/contracts-v2/=lib/contracts-v2/contracts/src/",
-    "@ensdomains/contracts-v2/lib=lib/contracts-v2/contracts/lib/",
+    "@ensdomains/verifiable-factory/=lib/contracts-v2/contracts/lib/verifiable-factory/src/",
 ]
 
 [rpc_endpoints]
