@@ -31,16 +31,49 @@ Checked with `cast` against Sepolia at planning time:
 - `VerifiableFactory` exposes `deployProxy(address,uint256,bytes)`, so the
   `initialize` call is passed as encoded `initData` rather than called directly.
 
-### Two open discrepancies
+### The submodule is behind the deployment
 
-1. `ETHRegistry.supportsInterface(0x6be50c69)` returns **false**, though that is the
-   selector in the submodule's `IPermissionedRegistry` docstring. Not a blocker: every
-   function we call is present and `getState` decodes into the submodule's `State`
-   struct correctly. The docstring selector is likely stale.
-2. `initialize(address,uint256)` did not appear in `UserRegistryImpl`'s bytecode by
-   selector scan, and the RPC strips revert data so a call probe could not confirm
-   either way. Settle this at Checkpoint 5 by reading the verified source on Etherscan
-   before encoding `initData`.
+`lib/contracts-v2` is pinned at `48b3e2d`, and the hackathon contracts were built from something
+newer. Deployed `UserRegistryImpl` runtime is 35,506 hex chars against the submodule's 31,518, and
+it carries functions the pin does not have (`findOwner`, `findExpiry`, `findTokenId`, `getParent`,
+`setLabel`, `getURI`, `isContractNamer`).
+
+**One signature actually differs, and it is the one we need:**
+
+| | Signature | Selector |
+|---|---|---|
+| Submodule pin | `initialize(address,uint256)` | `0xcd6dc687` |
+| **Deployed** | `initialize((address,uint256)[])` | `0x37cb53a8` |
+
+The deployed initializer takes an **array of `(account, roleBitmap)` pairs**, so root roles can go
+to several accounts at deploy time. Do not import `UserRegistry` from the submodule to initialize
+a proxy — declare a minimal local interface instead:
+
+```solidity
+interface IUserRegistryInit {
+    struct RoleAssignment { address account; uint256 roleBitmap; }
+    function initialize(RoleAssignment[] calldata assignments) external;
+}
+```
+
+Encoded for the gate, this is what goes into `deployProxy`'s `data` argument:
+
+```
+VerifiableFactory.deployProxy(UserRegistryImpl, salt, initData)   // 0x5d84121a
+initData = abi.encodeCall(IUserRegistryInit.initialize,
+                          ([RoleAssignment(gate, GATE_ROOT_ROLE_BITMAP)]))
+```
+
+**Everything else matches.** These were checked selector-by-selector against the deployed bytecode
+and are identical to the submodule, so the submodule interfaces are safe for all of them:
+
+`register` `renew` `unregister` `getState` `getStatus` `getResource` `getTokenId` `getOwner`
+`latestOwnerOf` `setSubregistry` `setResolver` `getSubregistry` `getResolver` `grantRoles`
+`revokeRoles` `grantRootRoles` `revokeRootRoles` `hasRoles` `hasRootRoles` `roles` `roleCount`
+
+Also resolved: `ETHRegistry.supportsInterface(0x6be50c69)` returns false because the deployed
+interface differs from the pinned one, so its selector differs too. Not a problem — never check
+against that constant.
 
 ## Full deployment table
 
