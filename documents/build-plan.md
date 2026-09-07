@@ -13,7 +13,7 @@ four days: mocks, deploy scripts, the CRE TypeScript workflow, and the running f
 ## Progress
 
 - [x] 1 — Make the repo build
-- [ ] 2 — Pin the deployment and register `herit.eth`
+- [x] 2 — Pin the deployment and register `herit.eth`
 - [ ] 3 — Define Herit's own ENS roles
 - [ ] 4 — AccessControlGate
 - [ ] 5 — Prove the mechanic on-chain
@@ -202,8 +202,26 @@ Verified live: `herit` is available, a year costs `8000021` MockUSDC (6 decimals
 payment. `register` takes a `subregistry` argument, so the grantor registry can be attached
 in the same transaction once it exists.
 
-**Status.** `documents/deployments.md` holds the verified addresses. Registration of
-`herit.eth` is the outstanding piece.
+**Do not use the web app.** `manager.ens.dev` and `sepolia.app.ens.domains` register against
+the *regular* Sepolia beta set, which is a different group of contracts entirely — beta
+`ETHRegistry` is `0xbdc85dd5...` against the hackathon set's `0x1d78834d...`. A name
+registered there would be invisible to Herit.
+
+**Run.** `script/RegisterHeritRoot.s.sol`, in three steps because commit-reveal spans a
+mandatory 60-second gap that no single broadcast can cover:
+
+```bash
+export HERIT_SECRET='any phrase, same for both runs'
+forge script script/RegisterHeritRoot.s.sol --sig "commit()" \
+  --rpc-url sepolia_eth --account herit-deployer --broadcast
+# wait 60 seconds
+forge script script/RegisterHeritRoot.s.sol --sig "reveal()" \
+  --rpc-url sepolia_eth --account herit-deployer --broadcast
+forge script script/RegisterHeritRoot.s.sol --sig "check()" --rpc-url sepolia_eth
+```
+
+`commit()` mints the test USDC, approves the registrar and records the commitment.
+`reveal()` registers. `check()` is read-only and needs no key.
 
 **Check.** `ETHRegistrar.isAvailable("herit")` returns false afterwards, and
 `ETHRegistry.getState(keccak256("herit"))` shows `REGISTERED` with your EOA as owner.

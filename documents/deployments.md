@@ -93,10 +93,35 @@ For name resolution against this deployment, the Universal Resolver address buil
 viem and ethers must be overwritten once in your code with
 `UpgradableUniversalResolverProxy` above. Relevant to the frontend, not the contracts.
 
-## Estate
+## Herit root
+
+`herit.eth` is the parent every grantor name hangs off. Registered once, by us; grantors get
+`alice.herit.eth` free.
 
 | Item | Value |
 |---|---|
-| Grantor name | _to fill in_ |
-| Grantor EOA | _to fill in_ |
-| UserRegistry proxy | _Checkpoint 5_ |
+| Name | `herit.eth` |
+| Owner | `0x9C0e9298d35E6e357E376E7b07A2342586649418` (keystore `herit-deployer`) |
+| Expiry | `1820278872` — 2027-09-07, a year out |
+| EAC resource | `68075676060768908916428320288337324792951252921863322193669617456339144933376` |
+| Registered by | `script/RegisterHeritRoot.s.sol` |
+| Grantor registry (A) | _Checkpoint 5_ |
+
+The owner holds `ROLE_SET_SUBREGISTRY` and its admin, granted by `ETHRegistrar`'s
+`REGISTRATION_ROLE_BITMAP` (`ETHRegistrar.sol:18`), which is what lets registry A be attached
+at Checkpoint 5.
+
+Address the name by its **resource** above, never by token id. Token ids change on every role
+grant or revoke (`PermissionedRegistry._regenerate`).
+
+### Running a script against this deployment
+
+`--account` chooses the signer. `--sender` sets `msg.sender`. Foundry infers neither from the
+other, and omitting `--sender` silently substitutes Foundry's default account, whose private
+key is public.
+
+```bash
+export HERIT_SECRET='...'
+export HERIT_OWNER=0x9C0e9298d35E6e357E376E7b07A2342586649418
+forge script <script> --rpc-url sepolia_eth --account herit-deployer --sender $HERIT_OWNER --broadcast
+```
