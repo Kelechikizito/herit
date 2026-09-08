@@ -14,24 +14,6 @@ import {IVerifiableFactoryLogic} from "src/interfaces/IVerifiableFactoryLogic.so
 import {CloneProxyBytecode} from "@ensdomains/verifiable-factory/CloneProxyBytecode.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-// REVIEW - IMPORTS
-//
-// [1] BROKEN PATH. foundry.toml remaps `@ensdomains/contracts-v2/` to
-//     `lib/contracts-v2/contracts/src/`, so this import resolves to
-//     `lib/contracts-v2/contracts/src/lib/verifiable-factory/...`, which does not exist.
-//     The file is really at `lib/contracts-v2/contracts/lib/verifiable-factory/src/`, i.e. under
-//     `contracts/lib/`, not `contracts/src/lib/`. Fix by adding a remapping to foundry.toml:
-//         "@ensdomains/verifiable-factory/=lib/contracts-v2/contracts/lib/verifiable-factory/src/"
-//     That is the same alias the submodule itself uses, so paths match its source.
-//
-// [2] `src/libraries/HeritRolesLib.sol` works today only because Foundry falls back to the project
-//     root. `./libraries/HeritRolesLib.sol` is relative to this file and cannot break if the
-//     project layout moves. Prefer the relative form for your own files.
-
-/// @title AccessControlGate
-/// @notice The only contract in Herit that talks to ENS. Everything else deals in money and time;
-///         this deals in names and permissions, and translates between the two.
-/// @dev Hierarchy it maintains:
 ///
 ///      herit.eth                     owned by the deployer EOA
 ///        └─ GRANTOR_REGISTRY         registry A, this contract holds root roles
@@ -39,25 +21,39 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///                  └─ estate registry   registry B, deployed per estate, this contract holds root
 ///                       ├─ son          an heir
 ///                       └─ kate         an heir
-///
-///      The gate never holds funds and never decides when an estate unlocks. `HeritRegistry` owns
-///      that decision and calls in. The gate holds `ROLE_HEIR_CLAIM_ADMIN` on every registry root,
-///      which is the most dangerous privilege in the system, so every state-changing function here
-///      needs an access check.
+
+/**
+ * @title AccessControlGate
+ * @author Kelechi Kizito Ugwu
+ * @notice The AccessControlGate contract manages access control for the Herit system.
+ * @notice It acts as a bridge between ENS and the Herit registry, handling name-based permissions. It never holds funds and does not decide when an estate unlocks. The HeritRegistry contract owns that decision and calls into this contract.
+ * @dev This contract holds the most dangerous privilege in the system, so every state-changing function needs an access check.
+ */
 contract AccessControlGate is ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
+    /// @dev An address that must be non-zero — a constructor dependency, a grantor, or an heir — was zero.
     error AccessControlGate__ZeroAddress();
+    /// @dev Only `HeritRegistry` decides when an estate unlocks, and the caller was not it.
     error AccessControlGate__NotHeritRegistry();
+    /// @dev Only the address owning the estate's name in registry A may add heirs beneath it.
     error AccessControlGate__NotGrantor();
+    /// @dev No registry exists for this estate, so `openEstate` was never called for its label.
     error AccessControlGate__EstateNotFound(uint256 estateId);
+    /// @dev The grantor label is already registered or reserved in registry A.
     error AccessControlGate__LabelNotAvailable(string label);
+    /// @dev This estate already has a registry, and deploying a second would collide in the factory.
     error AccessControlGate__EstateAlreadyOpen(uint256 estateId);
+    /// @dev An heir subname may not outlive its grantor name, which would leave it unresolvable.
     error AccessControlGate__ExpiryExceedsEstate(uint64 expiry, uint64 estateExpiry);
+    /// @dev This heir's share would push the estate's allocated total past 100%.
     error AccessControlGate__ShareOverflow(uint256 totalBps);
+    /// @dev The grantor name has lapsed, so a role granted now would land on a resource nothing reads.
     error AccessControlGate__EstateExpired(uint256 estateId);
+    /// @dev `renewEstate` may not push an expiry beyond `MAX_RENEWAL_WINDOW`, since it can never be reduced.
     error AccessControlGate__ExpiryTooFar(uint64 newExpiry, uint64 maxExpiry);
+    /// @dev `namehash("herit.eth")` was zero, which would silently write every record to the wrong node.
     error AccessControlGate__ZeroNode();
 
     /*//////////////////////////////////////////////////////////////
@@ -76,40 +72,40 @@ contract AccessControlGate is ReentrancyGuard {
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev `initialize((address,uint256)[])` on the deployed `UserRegistryImpl`. Encoded by
-    ///      selector rather than `abi.encodeCall`, because the pinned submodule declares a
-    ///      different signature and would type-check against the wrong one.
+    /// @dev Selector for `initialize((address,uint256)[])` on the deployed `UserRegistryImpl`, encoded by hand because the pinned submodule declares a different signature.
     bytes4 private constant USER_REGISTRY_INITIALIZE = 0x37cb53a8;
 
-    /// @dev SLIP-44 coin type for ETH, for the heir's `addr` record.
+    /// @dev SLIP-44 coin type for ETH, the key an heir's `addr` record is written under.
     uint256 private constant COIN_TYPE_ETH = 60;
 
+    /// @dev 100% expressed in basis points, the unit `shareBps` is denominated in.
     uint256 private constant BPS_DENOMINATOR = 10_000;
 
-    /// @dev Ceiling on how far `renewEstate` may push an expiry. Expiry can never be reduced,
-    ///      so an unbounded permissionless renew lets the first caller pin a name forever.
+    /// @dev Ceiling on how far `renewEstate` may push an expiry, since expiry can never be reduced and an unbounded permissionless renew would let the first caller pin a name forever.
     uint64 private constant MAX_RENEWAL_WINDOW = 3650 days;
 
+    /// @dev Deploys one `UserRegistry` proxy per estate, at an address derivable before it exists.
     IVerifiableFactory public immutable I_VERIFIABLE_FACTORY;
+
+    /// @dev The implementation every estate registry proxy delegates to.
     address public immutable I_USER_REGISTRY_IMPL;
+
+    /// @dev The estate state machine, and the only caller permitted to unlock an heir.
     IHeritRegistry public immutable I_HERIT_REGISTRY;
+
+    /// @dev Registry A, hanging under `herit.eth`, holding one name per grantor.
     IPermissionedRegistry public immutable I_GRANTOR_REGISTRY;
 
+    /// @dev The `PermissionedResolver` this gate holds root write roles on, carrying every heir's `addr`, `herit.relationship` and `herit.share` records.
     address public immutable I_RESOLVER;
 
-    /// @dev `namehash("herit.eth")`, the root of the whole tree.
-    ///      Needed because the registry addresses names by labelhash while the resolver addresses
-    ///      them by node, and a node can only be built by walking down from its parent:
-    ///          aliceNode = keccak256(I_HERIT_NODE, labelhash("alice"))
-    ///          sonNode   = keccak256(aliceNode,    labelhash("son"))
-    ///      There is no way to derive this from a label alone, so it has to be supplied.
+    /// @dev `namehash("herit.eth")`, supplied rather than derived because a node can only be built by hashing downwards from its parent.
     bytes32 public immutable I_HERIT_NODE;
 
+    /// @dev The registry deployed for each estate, and the only path from an estate id to its heirs.
     mapping(uint256 estateId => address estateRegistry) private s_estateRegistries;
 
-    /// @dev Running total of `shareBps` handed out per estate. Nothing else sums the shares,
-    ///      so without it three heirs can each hold 100%. Delete if `HeritRegistry` becomes
-    ///      the source of truth for the share matrix, and check there instead.
+    /// @dev Running total of `shareBps` handed out per estate, because nothing else sums the shares; delete it if `HeritRegistry` becomes the source of truth for the share matrix.
     mapping(uint256 estateId => uint256 allocatedBps) private s_allocatedShareBps;
 
     /*//////////////////////////////////////////////////////////////
