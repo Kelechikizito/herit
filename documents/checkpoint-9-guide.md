@@ -94,18 +94,38 @@ bytes32 private constant ATTESTATION_TYPEHASH = keccak256(
 );
 ```
 
-No spaces, no line breaks inside that string, fields in exactly the struct's order. Because every
-field is a fixed-size value type, hashing the struct is one `abi.encode` with no inner hashing:
+No spaces, no line breaks inside that string, fields in exactly the struct's order.
+
+The digest is built by one public function, `getMessageHash`, which takes the seven fields and
+returns what this contract will check:
 
 ```solidity
-keccak256(abi.encode(
-    ATTESTATION_TYPEHASH, a.estateId, a.subject, a.action, a.heirLabelhash, a.commitment, a.nonce, a.expiry
-))
+function getMessageHash(
+    uint256 estateId,
+    address subject,
+    bytes32 action,
+    uint256 heirLabelhash,
+    bytes32 commitment,
+    uint256 nonce,
+    uint256 expiry
+) public view returns (bytes32) {
+    return _hashTypedDataV4(
+        keccak256(abi.encode(ATTESTATION_TYPEHASH, Attestation({ ...the seven fields... })))
+    );
+}
 ```
 
-If you ever add a `string` or `bytes` field, that field has to be replaced by `keccak256(bytes(x))`
-inside the encode. That is the single most common EIP-712 mistake; avoiding it is a reason to keep
-the struct all value types.
+Encoding the struct and encoding the seven fields one by one give the same 32 bytes. Checked, not
+assumed: 256 fuzz runs comparing the two. Every field is a fixed-size value type, so the struct
+encodes as a plain tuple with no offset word in front of it.
+
+That equality is why the struct must stay all value types. Add a `string` or `bytes` field and it
+no longer holds — that field would have to become `keccak256(bytes(x))` inside the encode, and
+`abi.encode` of the struct will not do that for you. It is the most common EIP-712 mistake, and it
+fails as a wrong signer rather than as anything that names the cause.
+
+Everything else in this contract calls `getMessageHash`. There is one copy of the digest, it is
+`public`, and the backend can call it.
 
 ---
 
@@ -193,8 +213,13 @@ to fail first:
    in the mempool or in a frontend log can replay it as themselves.
 4. `a.commitment != bytes32(0)`, else `ZeroCommitment`. A backend that fails to read the nullifier
    and signs zeros would otherwise bind every estate to the same "human".
-5. `ECDSA.recover(_hashTypedDataV4(_hashAttestation(a)), signature) == I_SIGNER`, else
-   `InvalidSigner(recovered)`.
+5. Recover and compare, else `InvalidSigner(recovered)`:
+   ```solidity
+   bytes32 digest = getMessageHash(
+       a.estateId, a.subject, a.action, a.heirLabelhash, a.commitment, a.nonce, a.expiry
+   );
+   if (ECDSA.recover(digest, signature) != I_SIGNER) revert ...;
+   ```
 6. `!s_nonceUsed[a.nonce]`, else `NonceUsed`; then `s_nonceUsed[a.nonce] = true`. **Burn it here**,
    before either caller reaches its external call.
 
@@ -253,19 +278,19 @@ a public identifier. The salt never leaves the backend.
 
 ## 10. Views the backend and the frontend need
 
-```solidity
-/// @notice The exact digest this contract will check. The backend asserts its own equals this.
-function hashAttestation(Attestation calldata a) external view returns (bytes32);
+`getMessageHash` from §4 is already one of these, and the important one: it turns "wrong signer"
+into a real answer in one `cast call`, because the backend can ask the contract for the digest it
+expects and compare byte for byte. Keep it `public`. The rest:
 
+```solidity
 function nonceUsed(uint256 nonce) external view returns (bool);
 function commitmentOf(uint256 estateId) external view returns (bytes32);
 function claimCommitmentUsed(uint256 estateId, bytes32 commitment) external view returns (bool);
 ```
 
-`hashAttestation` is the debugging tool that turns "wrong signer" into a real answer in one
-`cast call`. `EIP712` also gives you `eip712Domain()` free (ERC-5267), which returns the name,
-version, chain id and verifying contract — that is what the backend reads to build its domain
-rather than being told them twice.
+`EIP712` also gives you `eip712Domain()` free (ERC-5267), which returns the name, version, chain id
+and verifying contract — that is what the backend reads to build its domain rather than being told
+them twice.
 
 The domain and types the backend signs, which must match §4 character for character:
 
@@ -286,9 +311,9 @@ types: { Attestation: [
 
 ## 11. Do it in this order
 
-1. §2–§7 — imports through constructor, plus `_hashAttestation` and `hashAttestation`.
-   `forge build`, then sign something in a Foundry test with `vm.sign` and check it recovers. Get
-   that green before writing anything else; everything below assumes the digest is right.
+1. §2–§7 — imports through constructor, plus `getMessageHash`. `forge build`, then sign a digest in
+   a Foundry test with `vm.sign` and check it recovers to the signer. Get that green before writing
+   anything else; everything below assumes the digest is right.
 2. `_verify`, all six checks.
 3. `checkIn`, including the grantor check and the bind-or-match.
 4. `claim`.
