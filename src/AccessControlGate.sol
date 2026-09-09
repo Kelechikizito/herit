@@ -48,8 +48,6 @@ contract AccessControlGate is ReentrancyGuard {
     error AccessControlGate__EstateAlreadyOpen(uint256 estateId);
     /// @dev An heir subname may not outlive its grantor name, which would leave it unresolvable.
     error AccessControlGate__ExpiryExceedsEstate(uint64 expiry, uint64 estateExpiry);
-    /// @dev This heir's share would push the estate's allocated total past 100%.
-    error AccessControlGate__ShareOverflow(uint256 totalBps);
     /// @dev The grantor name has lapsed, so a role granted now would land on a resource nothing reads.
     error AccessControlGate__EstateExpired(uint256 estateId);
     /// @dev `renewEstate` may not push an expiry beyond `MAX_RENEWAL_WINDOW`, since it can never be reduced.
@@ -87,9 +85,6 @@ contract AccessControlGate is ReentrancyGuard {
     ///      and this value never varies.
     bytes private constant HERIT_NAME = hex"0568657269740365746800";
 
-    /// @dev 100% expressed in basis points, the unit `shareBps` is denominated in.
-    uint256 private constant BPS_DENOMINATOR = 10_000;
-
     /// @dev Ceiling on how far `renewEstate` may push an expiry, since expiry can never be reduced and an unbounded permissionless renew would let the first caller pin a name forever.
     uint64 private constant MAX_RENEWAL_WINDOW = 3650 days;
 
@@ -116,9 +111,6 @@ contract AccessControlGate is ReentrancyGuard {
 
     /// @dev The registry deployed for each estate, and the only path from an estate id to its heirs.
     mapping(uint256 estateId => address estateRegistry) private s_estateRegistries;
-
-    /// @dev Running total of `shareBps` handed out per estate, because nothing else sums the shares; delete it if `HeritRegistry` becomes the source of truth for the share matrix.
-    mapping(uint256 estateId => uint256 allocatedBps) private s_allocatedShareBps;
 
     mapping(uint256 estateId => string label) private s_estateLabels;
 
@@ -297,12 +289,6 @@ contract AccessControlGate is ReentrancyGuard {
             if (expiry > estateExpiry) {
                 revert AccessControlGate__ExpiryExceedsEstate(expiry, estateExpiry);
             }
-
-            uint256 allocated = s_allocatedShareBps[estateId] + shareBps;
-            if (allocated > BPS_DENOMINATOR) {
-                revert AccessControlGate__ShareOverflow(allocated);
-            }
-            s_allocatedShareBps[estateId] = allocated;
         }
 
         // Registry B, not registry A. The bitmap withholds `ROLE_HEIR_CLAIM` on purpose; granting
@@ -313,6 +299,11 @@ contract AccessControlGate is ReentrancyGuard {
             );
 
         _writeHeirRecords(estateId, label, heir, relationship, shareBps);
+
+        // After the ENS mint, so a duplicate label reverts there rather than here, and after the
+        // records, so a rejected share leaves no orphan subname. `HeritRegistry` owns the share
+        // matrix and enforces both the 100% cap and `MAX_HEIRS`.
+        I_HERIT_REGISTRY.recordHeir(estateId, label, heir, shareBps);
 
         emit HeirRegistered(estateId, _labelhash(label), heir, shareBps);
     }
@@ -357,6 +348,17 @@ contract AccessControlGate is ReentrancyGuard {
         emit HeirUnlocked(estateId, heirLabelhash, heir);
         // No resolver write anywhere above. Records were fixed at registration; unlock changes
         // permission, not identity.
+    }
+
+    /// @notice Rewrites an heir's share record after `HeritRegistry.setShare`. Registry only.
+    /// @dev Display metadata, not the source of truth — `HeritRegistry` holds the share matrix and
+    ///      `ClaimManager` pays from that. This keeps the name from advertising a stale number.
+    function writeShareRecord(uint256 estateId, string calldata label, address token, uint16 bps)
+        external
+        onlyHeritRegistry
+        nonReentrant
+    {
+        IHeritResolver(I_RESOLVER).setText(_heirName(estateId, label), _shareKey(token), Strings.toString(bps));
     }
 
     /// @notice Extends a grantor name's registration. Permissionless: anyone may pay the gas.
@@ -424,7 +426,14 @@ contract AccessControlGate is ReentrancyGuard {
         IHeritResolver resolver = IHeritResolver(I_RESOLVER);
         resolver.setAddress(heirName, COIN_TYPE_ETH, abi.encodePacked(heir));
         resolver.setText(heirName, "herit.relationship", relationship);
-        resolver.setText(heirName, "herit.share", Strings.toString(shareBps));
+        resolver.setText(heirName, _shareKey(address(0)), Strings.toString(shareBps));
+    }
+
+    /// @dev The text key an heir's share of one token is written under. The estate-wide default
+    ///      lives at `herit.share`; a per-token override is namespaced by the token address so it
+    ///      cannot overwrite the default. `address(0)` is the vault's native-asset sentinel.
+    function _shareKey(address token) internal pure returns (string memory) {
+        return token == address(0) ? "herit.share" : string.concat("herit.share.", Strings.toHexString(token));
     }
 
     function _estateRegistry(uint256 estateId) internal view returns (IPermissionedRegistry) {

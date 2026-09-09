@@ -37,6 +37,10 @@ contract MockHeritRegistry {
     function isAvailable(string calldata) external pure returns (bool) {
         return false;
     }
+
+    /// @dev A no-op. `AccessControlGate.registerHeir` calls this on every heir, and the fork suite
+    ///      exercises the ENS half of that, not Herit's share accounting.
+    function recordHeir(uint256, string calldata, address, uint16) external {}
 }
 
 /// @dev A plain ERC20 with an open mint and a settable decimal count, so the suite can use a
