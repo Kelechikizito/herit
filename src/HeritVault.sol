@@ -1,4 +1,56 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-contract HeritVault {}
+import {IHeritRegistry} from "src/interfaces/IHeritRegistry.sol";
+import {ClaimManager} from "src/ClaimManager.sol";
+
+/**
+ * @title HeritVault
+ * @author Kelechi Kizito Ugwu
+ * @notice Escrow for one estate's willed assets, holding ETH and ERC20 deposits from the grantor until the estate unlocks and the heirs claim their shares.
+ * @notice One vault serves every estate; the estate id keys the accounting.
+ * @dev Two numbers per token: the balance, which is the money actually held, and the snapshot,
+ *      which is what that balance was at the moment of unlock. Shares are always a percentage of
+ *      the snapshot and the money always leaves the balance, so heirs claiming at different times
+ *      are all measured against the same total. Deposits and withdrawals close at unlock.
+ * @dev Knows nothing about heirs. `AccessControlGate` owns who they are, `HeritRegistry` owns their
+ *      shares, and `ClaimManager` owns whether one has already been paid.
+ */
+contract HeritVault {
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
+    error HeritVault__ZeroAddress();
+
+    /*//////////////////////////////////////////////////////////////
+                           TYPE DECLARATIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                               MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                           INTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /*//////////////////////////////////////////////////////////////
+                      EXTERNAL VIEW/PURE FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+}
