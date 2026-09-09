@@ -2,6 +2,7 @@
 pragma solidity 0.8.30;
 
 import {RegistryRolesLib} from "@ensdomains/contracts-v2/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedResolverLib} from "@ensdomains/contracts-v2/resolver/libraries/PermissionedResolverLib.sol";
 
 /// @dev Herit's roles within the `EnhancedAccessControl` nybble-packed bitmap, alongside the
 ///      registry roles in `RegistryRolesLib`. That library occupies nybbles 0-9 and 30-31; Herit
@@ -32,6 +33,24 @@ library HeritRolesLib {
     uint256 internal constant HEIR_REGISTRATION_ROLE_BITMAP = RegistryRolesLib.ROLE_SET_RESOLVER
         | RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         | RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN | ROLE_HEIR_REGISTERED;
+
+    /// @dev Roles `AccessControlGate` holds on the ROOT_RESOURCE of the `PermissionedResolver`,
+    ///      letting it write every heir's `addr`, `herit.relationship` and `herit.share` record.
+    ///      Root grants fall through to every resource, so one resolver serves every estate.
+    ///
+    ///      These come from `PermissionedResolverLib`, NOT `RegistryRolesLib`. The two libraries
+    ///      number their roles independently and their bits overlap, so `GATE_ROOT_ROLE_BITMAP`
+    ///      means something entirely different here and must never be substituted.
+    ///
+    ///      Each regular role is paired with its admin half for the same reason
+    ///      `GATE_ROOT_ROLE_BITMAP` is: `EnhancedAccessControl._getSettableRoles` lets an account
+    ///      grant only the roles whose admin halves it holds. The deployer initializes the
+    ///      resolver holding this bitmap and then grants the same bitmap to the gate, and without
+    ///      the admin halves that second step reverts `EACCannotGrantRoles`. The gate never calls
+    ///      `grantRoles` on the resolver, so the admin bits sit unused on its side.
+    uint256 internal constant GATE_RESOLVER_ROLE_BITMAP = PermissionedResolverLib.ROLE_SET_ADDR
+        | PermissionedResolverLib.ROLE_SET_ADDR_ADMIN | PermissionedResolverLib.ROLE_SET_TEXT
+        | PermissionedResolverLib.ROLE_SET_TEXT_ADMIN;
 
     /// @dev Roles `AccessControlGate` holds on the root resource of each registry it controls,
     ///      passed as `UserRegistry.initialize`'s `roleBitmap`. Settable roles on a name are the
