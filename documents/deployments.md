@@ -138,11 +138,53 @@ viem and ethers must be overwritten once in your code with
 | Expiry | `1820278872` — 2027-09-07, a year out |
 | EAC resource | `68075676060768908916428320288337324792951252921863322193669617456339144933376` |
 | Registered by | `script/RegisterHeritRoot.s.sol` |
-| Grantor registry (A) | _Checkpoint 5_ |
+| Grantor registry (A) | `0x0Aa2A7d858bA649B6a794E1fa07ccb97a50E4a21` |
 
 The owner holds `ROLE_SET_SUBREGISTRY` and its admin, granted by `ETHRegistrar`'s
 `REGISTRATION_ROLE_BITMAP` (`ETHRegistrar.sol:18`), which is what lets registry A be attached
 at Checkpoint 5.
+
+## Herit contracts
+
+Deployed at Checkpoint 5. Registry A and the resolver are permanent; the gate is redeployed at
+Checkpoint 8 against the real `HeritRegistry`, and only the two role grants need re-running.
+
+| Contract | Address | Notes |
+|---|---|---|
+| Grantor registry (A) | `0x0Aa2A7d858bA649B6a794E1fa07ccb97a50E4a21` | `UserRegistry` proxy, attached as `herit.eth`'s subregistry. Holds one name per grantor. |
+| `PermissionedResolver` | `0x42fA2a1582a89E18d0a54d8dC65157172489EBb1` | Proxy carrying every heir's `addr`, `herit.relationship` and `herit.share` records. |
+| `AccessControlGate` | `0xD9431E6811fcd8E6C5D186fF0B2E81024743E947` | Holds `GATE_ROOT_ROLE_BITMAP` on registry A and `GATE_RESOLVER_ROLE_BITMAP` on the resolver. |
+
+Both proxies come from `VerifiableFactory` `0x894bc9cC…7780`, so `verifyContract` confirms their
+provenance. The gate's `I_HERIT_REGISTRY` is the deployer EOA for now, which is what makes
+`unlockHeir` callable by hand for the walkthrough.
+
+| Step | Transaction |
+|---|---|
+| Registry A deployed and attached | `script/DeployRegistryA.s.sol --sig "deploy()"` |
+| Resolver deployed | `script/DeployResolver.s.sol --sig "deploy()"` |
+| Gate deployed | `0x4e9b1e6d6ad412729f315d420c17560ff5482ec0d19576b528185db68f50e5f1` |
+| Gate granted registry A roles | `0x67fe7e62a453eebb439916b89b15b4a33a5337ea85b4da903017cb7b1425e58c` |
+| Gate granted resolver roles | `0xbb0d318f76f99311574d680fa10fefff870b8fc6193ffbc5c4d16326e8134929` |
+
+`make check-checkpoint-5 GATE=0xD9431E68…E947` re-runs all three read-only checks.
+
+### The Checkpoint 5 walkthrough, on-chain
+
+One estate opened by hand through the gate, to prove the mechanic before anything was built on
+it. `estateId` is `keccak256("alice")` = `0x9c025711…0501`.
+
+| Item | Value |
+|---|---|
+| Estate registry (B) | `0x5C2c554E5718f0a605C79bF2Cd3d965D5e66eFa1` |
+| `son.alice.herit.eth` | `0xDBC29E79b2B3b62C015AB598D0bb86681313d90F`, 6000 bps |
+| `daughter.alice.herit.eth` | `0x93923B42Ff4bDF533634Ea71bF626c90286D27A0`, 4000 bps |
+
+`canClaim` read false after `registerHeir` and true after `unlockHeir`, for both heirs, and the
+resolver returns `herit.relationship`, `herit.share` and `addr(60)` for each name. Reading a
+record takes `resolve(dnsEncodedName, abi.encodeCall(text, (node, key)))` — the outer argument is
+the name spelled out, the inner one is the namehash.
+
 
 Address the name by its **resource** above, never by token id. Token ids change on every role
 grant or revoke (`PermissionedRegistry._regenerate`).
