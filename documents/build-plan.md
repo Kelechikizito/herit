@@ -14,10 +14,10 @@ four days: mocks, deploy scripts, the CRE TypeScript workflow, and the running f
 
 - [x] 1 — Make the repo build
 - [x] 2 — Pin the deployment and register `herit.eth`
-- [ ] 3 — Define Herit's own ENS roles
-- [ ] 4 — AccessControlGate
-- [ ] 5 — Prove the mechanic on-chain
-- [ ] 6 — HeritVault
+- [x] 3 — Define Herit's own ENS roles
+- [x] 4 — AccessControlGate
+- [x] 5 — Prove the mechanic on-chain
+- [x] 6 — HeritVault
 - [ ] 7 — HeritRegistry
 - [ ] 8 — ClaimManager
 - [ ] 9 — LivenessAttestor
