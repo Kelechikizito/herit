@@ -7,6 +7,7 @@ remappings = [
     "foundry-devops/=lib/foundry-devops/",
     "@ensdomains/contracts-v2/=lib/contracts-v2/contracts/src/",
     "@ensdomains/verifiable-factory/=lib/contracts-v2/contracts/lib/verifiable-factory/src/",
+    "@ens/contracts/=lib/contracts-v2/contracts/lib/ens-contracts/contracts/",
 ]
 
 [rpc_endpoints]
