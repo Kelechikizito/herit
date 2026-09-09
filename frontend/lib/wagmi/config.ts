@@ -3,10 +3,10 @@ import { sepolia } from "./chains";
 
 /**
  * wagmi config. (Sepolia only.)
- */
+*/
 export const config = createConfig({
   chains: [sepolia],
-  connectors: [injected()],
+  connectors: [injected({ shimDisconnect: true })],
   storage: createStorage({ storage: cookieStorage }),
   ssr: true,
   transports: {

@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Caveat, DM_Sans } from "next/font/google";
+import { headers } from "next/headers";
+import { cookieToInitialState } from "wagmi";
+import { Providers } from "./providers";
+import { config } from "@/lib/wagmi/config";
 import "./globals.css";
 
 // DM Sans carries the whole interface; Caveat is used sparingly, only for handwritten callouts.
@@ -27,10 +31,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const initialState = cookieToInitialState(config, (await headers()).get("cookie"));
+
   return (
     <html lang="en" className={`${dmSans.variable} ${caveat.variable} h-full`}>
-      <body className="flex min-h-full flex-col bg-cream text-ink">{children}</body>
+      <body className="flex min-h-full flex-col bg-cream text-ink">
+        <Providers initialState={initialState}>{children}</Providers>
+      </body>
     </html>
   );
 }
