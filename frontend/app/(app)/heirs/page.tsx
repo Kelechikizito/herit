@@ -2,11 +2,11 @@ import { AddHeirForm } from "@/components/heirs/add-heir-form";
 import { AllocationCard } from "@/components/heirs/allocation-card";
 import { HeirTable } from "@/components/heirs/heir-table";
 import { PageHeader } from "@/components/layout/page-header";
-import { fullName } from "@/lib/estate";
-import { SAMPLE_ESTATE } from "@/lib/fixtures/estate";
+import { fullName, nowSeconds } from "@/lib/estate";
+import { sampleEstate } from "@/lib/fixtures/estate";
 
 export default function HeirsPage() {
-  const estate = SAMPLE_ESTATE;
+  const estate = sampleEstate(nowSeconds());
 
   return (
     <div className="mx-auto max-w-6xl">

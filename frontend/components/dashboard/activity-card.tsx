@@ -1,5 +1,5 @@
 import { PanelCard, PanelList } from "@/components/ui/panel-card";
-import { type Estate, LOG_COLOR } from "@/lib/estate";
+import { type Estate, LOG_COLOR, formatStamp } from "@/lib/estate";
 
 /** The event feed. Every state change herit emits, newest first. */
 export function ActivityCard({ estate }: { estate: Estate }) {
@@ -14,7 +14,7 @@ export function ActivityCard({ estate }: { estate: Estate }) {
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm leading-relaxed">{entry.text}</p>
-              <p className="mono mt-0.5 text-[0.7rem] text-muted">{entry.stamp}</p>
+              <p className="mono mt-0.5 text-[0.7rem] text-muted">{formatStamp(entry.stamp)}</p>
             </div>
           </li>
         ))}

@@ -28,25 +28,45 @@ export type LogKind = "opened" | "checkin" | "heir" | "unlock" | "claim" | "depo
 
 export type LogEntry = {
   id: string;
-  stamp: string;
+  /** Unix seconds — the block timestamp of the emitting event. Formatted at render. */
+  stamp: number;
   kind: LogKind;
   text: string;
+};
+
+/**
+ * The `Estate` struct, exactly as `HeritRegistry.estateOf` returns it.
+ *
+ * Seconds, not milliseconds, and unix rather than a Date — these are `uint64`s read straight off
+ * the chain, so the only conversion at the read boundary is `Number(...)` on the bigint. The
+ * screens format these; they never reason from them about what state the estate is in.
+ */
+export type EstateClock = {
+  /** Unix seconds of the last accepted Selfie Check. Zero means the clock never started. */
+  lastCheckIn: number;
+  /** Seconds the grantor has to check in. Zero means the estate is not configured. */
+  checkInInterval: number;
+  /** Seconds of grace after a missed check-in, before heirs unlock. */
+  graceDuration: number;
+  /**
+   * The stored `status` field, which is a cache: it only moves when someone calls
+   * `pokeExpiry()`. Compare it against `statusOf` — the live answer — to know whether a poke
+   * would change anything. Neither value is ever computed here.
+   */
+  storedStatus: EstateStatus;
 };
 
 export type Estate = {
   label: string;
   grantor: string;
   estateRegistry: string;
+  /**
+   * From `HeritRegistry.statusOf` — the live status every other contract trusts, including
+   * `HeritVault`. Read, never derived: the frontend has no opinion about when an estate lapses.
+   */
   status: EstateStatus;
-  /** Human-readable window copy — the screens display these, nothing computes them. */
-  checkInInterval: string;
-  graceDuration: string;
-  remaining: string;
-  /** 0–1, how much of the current window is spent. Drives the countdown ring. */
-  progress: number;
-  lastCheckIn: string;
-  windowCloses: string;
-  unlocksAt: string;
+  /** From `HeritRegistry.estateOf`. Formatted into a countdown, nothing more. */
+  clock: EstateClock;
   vaultEth: number;
   heirs: Heir[];
   log: LogEntry[];

@@ -2,9 +2,9 @@ import { CardHeading } from "@/components/ui/card-heading";
 import { DataRow } from "@/components/ui/data-row";
 import { DotTrail } from "@/components/ui/deco";
 import { ShieldIcon, TreeIcon } from "@/components/ui/icons";
-import { type Estate, fullName, shortAddress } from "@/lib/estate";
+import { type Estate, formatStamp, fullName, shortAddress, unlockAt } from "@/lib/estate";
 
-/** What the heir is inheriting from, and the reminder that no one chose it. */
+/** What the heir is inheriting from. */
 export function EstateFactsCard({ estate }: { estate: Estate }) {
   return (
     <section className="card relative overflow-hidden p-6">
@@ -21,16 +21,16 @@ export function EstateFactsCard({ estate }: { estate: Estate }) {
         <DataRow label="grantor name" value={fullName(estate)} />
         <DataRow label="grantor" value={shortAddress(estate.grantor)} />
         <DataRow label="estate registry" value={shortAddress(estate.estateRegistry)} />
-        <DataRow label="last selfie check" value={estate.lastCheckIn} />
-        <DataRow label="unlocked at" value={estate.unlocksAt} />
+        <DataRow label="last selfie check" value={formatStamp(estate.clock.lastCheckIn)} />
+        <DataRow label="unlocked at" value={formatStamp(unlockAt(estate.clock))} />
         <DataRow label="vault balance" value={`${estate.vaultEth} ETH`} />
       </dl>
 
       <div className="relative z-10 mt-6 flex items-start gap-2.5 rounded-[8px] border-2 border-ink bg-cream px-4 py-3">
         <ShieldIcon size={18} />
         <p className="text-xs leading-relaxed text-muted">
-          herit never decided this. the unlock is a pure function of the clock, and anyone
-          could have poked the registry to trigger it.
+          the unlock is a pure function of the clock, and anyone
+          could poke the registry to trigger it.
         </p>
       </div>
     </section>
