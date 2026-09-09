@@ -9,6 +9,7 @@ import {IVerifiableFactory} from "@ensdomains/verifiable-factory/IVerifiableFact
 import {AccessControlGate} from "src/AccessControlGate.sol";
 import {HeritRolesLib} from "src/libraries/HeritRolesLib.sol";
 import {IHeritRegistry} from "src/interfaces/IHeritRegistry.sol";
+import {MockHeritRegistry} from "test/utils/VaultMocks.sol";
 import {IUserRegistryInit} from "src/interfaces/IUserRegistryInit.sol";
 import {IHeritResolver} from "src/interfaces/IHeritResolver.sol";
 import {IPermissionedResolverInit} from "src/interfaces/IPermissionedResolverInit.sol";
@@ -126,6 +127,10 @@ contract HeritForKTest is Test {
                 abi.encodeCall(IPermissionedResolverInit.initialize, (resolverRoles, new bytes[](0)))
             )
         );
+
+        /// @dev `registerHeir` calls `HeritRegistry.recordHeir`, so the stand-in needs code. The
+        ///      address stays the one `makeAddr` produced, because `unlockHeir` is pranked as it.
+        vm.etch(heritRegistry, address(new MockHeritRegistry()).code);
 
         /// @dev The contract under test, wired to real ENS infrastructure and one stand-in.
         accessControlGate = new AccessControlGate(

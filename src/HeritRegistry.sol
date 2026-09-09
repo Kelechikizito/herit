@@ -23,6 +23,7 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     error HeritRegistry__HeirNotFound(uint256 heirLabelhash);
     error HeritRegistry__ShareOverflow(uint256 totalBps);
     error HeritRegistry__NotActive(uint256 estateId);
+    error HeritRegistry__TooManyTokens(uint256 maxTokens);
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -45,8 +46,12 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     uint16 private constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MAX_HEIRS = 10; // @question why are we cappiung the max number of heirs?
 
-    // Ceilings so a stolen key cannot set a 100-year interval and freeze the heirs out.
-    // Floors low so the whole state machine can be walked live in the demo.
+    /// @dev How many tokens one estate may carry per-token overrides for. Matches
+    ///      `HeritVault.MAX_TOKENS`, because a token the vault will not hold cannot be paid out.
+    ///      The cap is what keeps `recordHeir`'s cross-check bounded.
+    uint256 public constant MAX_OVERRIDE_TOKENS = 10;
+
+    //  TO-DO: SYNC THE TIMES WITH THE FRONTEND LATER
     uint64 private constant MIN_CHECK_IN_INTERVAL = 1 minutes;
     uint64 private constant MAX_CHECK_IN_INTERVAL = 365 days;
     uint64 private constant MIN_GRACE_DURATION = 1 minutes;
@@ -57,11 +62,22 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     mapping(uint256 estateId => uint256[] heirLabelhashes) private s_heirs;
     mapping(uint256 estateId => mapping(uint256 heirLabelhash => address heir)) private s_heirAddress;
 
+    /// @dev The heir's label, kept because `AccessControlGate` addresses ENS records and role
+    ///      grants by name and a labelhash cannot be reversed.
+    mapping(uint256 estateId => mapping(uint256 heirLabelhash => string label)) private s_heirLabel;
+
     mapping(uint256 estateId => mapping(uint256 heirLabelhash => uint16 bps)) private s_defaultShare;
     mapping(uint256 estateId => uint16 bps) private s_allocatedDefaultBps;
 
     mapping(uint256 estateId => mapping(uint256 heirLabelhash => mapping(address token => uint16 bps))) private s_share;
     mapping(uint256 estateId => mapping(uint256 heirLabelhash => mapping(address token => bool))) private s_hasOverride;
+
+    /// @dev Every token this estate has at least one override for. `recordHeir` walks it to check
+    ///      that a late heir does not push an already-overridden token past 100%; without it the
+    ///      default ledger and the per-token matrix guard different numbers and neither sees the
+    ///      other. Bounded by `MAX_OVERRIDE_TOKENS`.
+    mapping(uint256 estateId => address[] tokens) private s_overriddenTokens;
+    mapping(uint256 estateId => mapping(address token => bool listed)) private s_tokenListed;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -181,12 +197,15 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
             s_estates[estateId].status = Status.Grace;
             emit EnteredGrace(estateId, uint64(block.timestamp));
         } else if (pending == Status.Unlocked) {
-            s_estates[estateId].status = Status.Unlocked;
-            emit Unlocked(estateId, uint64(block.timestamp), s_heirs[estateId].length);
+            _unlock(estateId);
         }
     }
 
-    function recordHeir(uint256 estateId, uint256 heirLabelhash, address heir, uint16 defaultShareBps)
+    /// @inheritdoc IHeritRegistry
+    /// @dev The cap is what keeps the unlock loop's gas bounded. Duplicate labels are stopped one
+    ///      level up: `registerHeir` mints the subname in ENS first, and that reverts on a name
+    ///      already taken.
+    function recordHeir(uint256 estateId, string calldata label, address heir, uint16 defaultShareBps)
         external
         nonReentrant
         onlyGate
@@ -197,13 +216,30 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
         if (heir == address(0)) {
             revert HeritRegistry__ZeroAddress();
         }
-        if (s_allocatedDefaultBps[estateId] + defaultShareBps > BPS_DENOMINATOR) {
-            revert HeritRegistry__ShareOverflow(s_allocatedDefaultBps[estateId] + defaultShareBps);
+        // Widened before adding. Two `uint16`s summing past 65535 panic on overflow instead of
+        // reaching the error below.
+        uint256 allocated = uint256(s_allocatedDefaultBps[estateId]) + defaultShareBps;
+        if (allocated > BPS_DENOMINATOR) {
+            revert HeritRegistry__ShareOverflow(allocated);
         }
+
+        // The default ledger above only knows about defaults. A token someone has already set an
+        // override for has its own total, and this heir's default lands on top of it. Checked
+        // before the push, so `_totalBps` does not yet count the heir being added.
+        address[] storage tokens = s_overriddenTokens[estateId];
+        for (uint256 i = 0; i < tokens.length; i++) {
+            uint256 tokenTotal = _totalBps(estateId, tokens[i]) + defaultShareBps;
+            if (tokenTotal > BPS_DENOMINATOR) {
+                revert HeritRegistry__ShareOverflow(tokenTotal);
+            }
+        }
+
+        uint256 heirLabelhash = uint256(keccak256(bytes(label)));
         s_heirs[estateId].push(heirLabelhash);
         s_heirAddress[estateId][heirLabelhash] = heir;
+        s_heirLabel[estateId][heirLabelhash] = label;
         s_defaultShare[estateId][heirLabelhash] = defaultShareBps;
-        s_allocatedDefaultBps[estateId] += defaultShareBps;
+        s_allocatedDefaultBps[estateId] = uint16(allocated); // forge-lint: disable-next-line(unsafe-typecast) // <= BPS_DENOMINATOR, so the cast is safe
 
         emit HeirRecorded(estateId, heirLabelhash, heir, defaultShareBps);
     }
@@ -226,12 +262,20 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
         if (prospective > BPS_DENOMINATOR) {
             revert HeritRegistry__ShareOverflow(prospective);
         }
-        // TODO: mirror this onto the heir's `herit.share` ENS text record. `AccessControlGate`
-        // has no `writeShareRecord` yet, and it cannot have one until the label-vs-labelhash
-        // question is settled — `_writeHeirRecords` addresses records by DNS-encoded name, and a
-        // labelhash cannot be reversed into the label it came from.
+        if (!s_tokenListed[estateId][token]) {
+            if (s_overriddenTokens[estateId].length >= MAX_OVERRIDE_TOKENS) {
+                revert HeritRegistry__TooManyTokens(MAX_OVERRIDE_TOKENS);
+            }
+            s_tokenListed[estateId][token] = true;
+            s_overriddenTokens[estateId].push(token);
+        }
+
         s_share[estateId][heirLabelhash][token] = bps;
         s_hasOverride[estateId][heirLabelhash][token] = true;
+
+        // Mirror onto ENS last, after this contract's own state is settled. The record is display
+        // metadata; the matrix above is what `ClaimManager` pays from.
+        I_GATE.writeShareRecord(estateId, s_heirLabel[estateId][heirLabelhash], token, bps);
 
         emit ShareSet(estateId, heirLabelhash, token, bps);
     }
@@ -239,14 +283,32 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    function _unlock(uint256 estateId) internal nonReentrant {
+    /// @dev The one irreversible transition. Status first, then the three effects, then the event.
+    ///      No `nonReentrant` of its own: the only caller is `pokeExpiry`, which already holds the
+    ///      guard, and a second acquisition would revert.
+    function _unlock(uint256 estateId) internal {
         s_estates[estateId].status = Status.Unlocked;
 
+        // Renew before anything else. `unlockHeir` refuses to grant into a lapsed estate, and a
+        // role written against an expired name lands on a resource id nothing reads.
         if (I_GRANTOR_REGISTRY.getExpiry(estateId) <= block.timestamp) {
             I_GATE.renewEstate(estateId, uint64(block.timestamp) + 365 days);
         }
 
-        emit Unlocked(estateId, uint64(block.timestamp), s_heirs[estateId].length);
+        // Freeze the balances before any heir can claim, so every share is measured against the
+        // same total. The vault makes this idempotent, which matters because `pokeExpiry` is
+        // permissionless and two callers can land in the same block.
+        I_VAULT.snapshot(estateId);
+
+        // The inheritance. Bounded by `MAX_HEIRS`, which is the whole reason that cap exists.
+        uint256[] storage heirs = s_heirs[estateId];
+        uint256 heirCount = heirs.length;
+        for (uint256 i = 0; i < heirCount; i++) {
+            uint256 heirLabelhash = heirs[i];
+            I_GATE.unlockHeir(estateId, s_heirLabel[estateId][heirLabelhash], s_heirAddress[estateId][heirLabelhash]);
+        }
+
+        emit Unlocked(estateId, uint64(block.timestamp), heirCount);
     }
 
     function _onlyGate() internal view {
@@ -333,6 +395,22 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     /*//////////////////////////////////////////////////////////////
                       EXTERNAL VIEW/PURE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    /// @notice One heir's share of one token, in basis points.
+    /// @dev The per-token override where the grantor set one, the estate-wide default otherwise.
+    function shareOf(uint256 estateId, uint256 heirLabelhash, address token) external view returns (uint256) {
+        return _effectiveShare(estateId, heirLabelhash, token);
+    }
+
+    /// @notice The heir labelhashes recorded against an estate, in registration order.
+    function heirsOf(uint256 estateId) external view returns (uint256[] memory) {
+        return s_heirs[estateId];
+    }
+
+    /// @notice The label an heir was registered under.
+    function heirLabelOf(uint256 estateId, uint256 heirLabelhash) external view returns (string memory) {
+        return s_heirLabel[estateId][heirLabelhash];
+    }
+
     /// @inheritdoc IHeritRegistry
     function statusOf(uint256 estateId) external view returns (Status) {
         return _pendingStatus(estateId);
