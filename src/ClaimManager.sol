@@ -86,8 +86,10 @@ contract ClaimManager is ReentrancyGuard {
         if (!I_GATE.canClaim(estateId, label, heir)) {
             revert ClaimManager__NotEntitled(estateId, heirLabelhash, heir);
         }
-        for (uint256 i = 0; i < I_VAULT.tokensOf(estateId).length; i++) {
-            address token = I_VAULT.tokensOf(estateId)[i];
+        address[] memory tokens = I_VAULT.tokensOf(estateId);
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
             if (s_paid[estateId][heirLabelhash][token]) continue;
             uint256 bps = I_HERIT_REGISTRY.shareOf(estateId, heirLabelhash, token);
             if (bps == 0) continue; // no share of this asset, therfore, nothing to record.
