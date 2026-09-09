@@ -103,6 +103,12 @@ flowchart TB
 **Why a backend attestor sits between World ID and the contracts, instead of verifying proofs fully on-chain:** 
 World ID's on-chain verifier infrastructure is deployed on World Chain (and bridged to a small set of other chains); ENSv2 is currently only deployed on Sepolia. There is no chain today that has both natively. Rather than block the whole project on a cross-chain bridge/oracle build, Herit verifies World ID proofs through the **Cloud Verify API** (the officially supported, non-on-chain verification path) in a backend service, then has the backend sign an **EIP-712 attestation** that a purpose-built `LivenessAttestor` contract on Sepolia checks before forwarding a check-in or claim to `HeritRegistry`. This is a standard, well-understood trust-minimization pattern (attestor/oracle with a narrowly scoped, single-purpose signing key, replay-protected by action+nonce+expiry), and it is explicitly called out as an acceptable World ID integration pattern ("proof validation is required and needs to occur in a **web backend or smart contract**").
 
+**One correction to that reasoning, found later and worth recording.** The premise "no chain today has both natively" is not quite true: the World ID Router *is* deployed on Ethereum Sepolia at `0x469449f251692e0779667583026b5a1e99512157`, alongside the ENSv2 hackathon set. Verified live — `routeFor(1)` returns the group-1 identity manager `0xb2EaD588f14e69266d1b87936b75325181377076` with a current merkle root, and `verifyProof` reverts `NonExistentRoot()` on junk rather than being absent.
+
+It does not change the design here, because on-chain verification is `groupId = 1`, **Orb credentials only**, and Selfie Check is a Cloud Verify-only credential. Selfie Check is Herit's thesis: a recurring *liveness* check is what a dead-man's switch needs, and an Orb proof shows uniqueness rather than that the human is alive today.
+
+Where it could still be used is the **heir claim** (§7.4), which is a one-time uniqueness gate rather than a liveness one. Adding `WorldIDRouter.verifyProof` there would put the sybil check on-chain with no attestor in the path, while check-in keeps the Selfie Check attestation. Noted as an option, not built.
+
 ---
 
 ## 6. Component Breakdown
@@ -147,7 +153,7 @@ World ID's on-chain verifier infrastructure is deployed on World Chain (and brid
 ### 7.2 Recurring check-in
 1. Before `lastCheckIn + checkInInterval` elapses, Grantor performs a Selfie Check (World ID action = `checkin:{estateId}`).
 2. Backend verifies via Cloud Verify, signs an attestation, submits to `LivenessAttestor` → `HeritRegistry.checkIn()`, resetting `lastCheckIn`.
-3. If the window is missed, anyone (or an automation like Chainlink Automation / Gelato) can permissionlessly call `pokeExpiry()`, which flips status to `Grace`.
+3. If the window is missed, anyone (or any keeper) can permissionlessly call `pokeExpiry()`, which flips status to `Grace`.
 
 ### 7.3 Missed check-in → Unlock
 1. If the Grantor performs a valid Selfie Check during `Grace`, status returns to `Active` — this is the built-in "false alarm" recovery path.
@@ -209,7 +215,7 @@ World ID's on-chain verifier infrastructure is deployed on World Chain (and brid
 | Naming | ENSv2 (Sepolia beta), Durin (ENSv2-Sepolia path), Verifiable Factory | Hierarchical registries + role-based permissions are the literal on-chain primitive "Enhanced Access Control" needs |
 | Contracts | Solidity, Sepolia testnet | Matches ENSv2's current deployment; Foundry-based tooling (aligned with Durin) |
 | Indexing | Ponder / ENSNode-style indexer | Fast reads of estate + role state without custom subgraph infra |
-| Automation | Chainlink Automation / Gelato (or manual demo trigger) | Permissionless `pokeExpiry()` calls so unlock doesn't depend on any single party remembering to poke the contract |
+| Automation | Any caller, or a keeper of your choice (manual trigger for the demo) | `pokeExpiry()` is permissionless, so unlock doesn't depend on any single party remembering to poke the contract |
 
 ---
 

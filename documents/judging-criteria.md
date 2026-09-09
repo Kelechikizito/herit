@@ -97,13 +97,17 @@ gate's address; the gate needs `HeritRegistry`'s. The gate keeps every dependenc
 bytecode at deployment. A post-deploy setter would have left both a window and a permanent
 function through which the privileged caller could be repointed.
 
-**Trust-minimized liveness without a signing key.** The architecture originally named the
-backend attestor key as "the biggest centralization point in the hackathon build". The build
-plan replaces it with a Chainlink CRE confidential workflow: several DON nodes each call
-World's Cloud Verify endpoint and reach BFT consensus before a report reaches Sepolia. The
-nullifier is salted with an enclave secret before it is written, because a raw nullifier is
-a stable per-person identifier that would link the same human across every estate they
-touch.
+**Liveness that a stolen key cannot fake.** Selfie Check is the point of the World
+integration: a recurring *liveness* proof, which is the one thing a `lastActive` timestamp
+cannot give. It is a Cloud Verify-only credential, so a backend verifies it and signs an
+EIP-712 attestation that `LivenessAttestor` checks on Sepolia — a narrow, single-purpose,
+domain-separated key that holds no funds and can only assert that a check passed.
+
+What makes it more than an assertion is the nullifier. Cloud Verify returns one that is stable
+per human, so the first check-in binds the estate to a salted commitment of it, and every later
+check-in must match. A compromised key cannot check in, because the thief is a different human.
+The salt keeps a raw nullifier off-chain, where it would otherwise link the same person across
+every estate they touch.
 
 ### What is missing
 
@@ -117,8 +121,8 @@ caller.
 Checkpoints 6–9 of the build plan, in order: `HeritVault` (snapshot balances at unlock, not
 at first claim, or a mid-claim deposit changes what a share means), `HeritRegistry` (the
 two-stage timer and the per-heir-per-token share matrix), `ClaimManager` (reads its answer
-from ENS via `canClaim`), `LivenessAttestor` (CRE reports only, two checks: caller is the
-Forwarder, workflow owner is ours).
+from ENS via `canClaim`), `LivenessAttestor` (EIP-712 attestations only, with the action, the
+nonce and the per-estate nullifier commitment all checked).
 
 ---
 
@@ -350,8 +354,7 @@ Three specifics that decide whether the moment lands:
 
 | Risk | Effect on score | Mitigation |
 |---|---|---|
-| World ID Sandbox never arrives | Practicality, and the World track directly | Drive the CRE workflow with a recorded proof payload; every other layer is unchanged and the video says so plainly |
-| CRE deployment fails on demo day | Technicality (loses the consensus story) | Ship the simulation recording plus the deployed receiver contract; ENS and World halves stand alone |
+| World ID Sandbox access never arrives | Practicality, and the World track directly | Drive the backend with a recorded Selfie Check payload; every other layer is unchanged and the video says so plainly |
 | Frontend stays a stub | Usability, and it caps WOW | Build the heir read-only view first; it needs no writes and it is the most legible screen in the product |
 | The resolver rewrite eats a day | Practicality | Checkpoint 5's headline result does not depend on the resolver setters — prove the role flip first, records second |
 | `documents/research/feedback/world.md` stays empty | It is **25% of the World track score** and is currently 0 bytes | Log rough edges as they happen; write it up in your own voice on day 4 |

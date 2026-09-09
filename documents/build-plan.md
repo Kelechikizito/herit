@@ -6,7 +6,7 @@ one says what gets built, in what order, and who writes each piece.
 **Kelechi writes the contracts. Claude explains, reviews and unblocks.** Each checkpoint
 states what is being built and why, what to understand before starting, what to write, how
 to check it, and what gets verified at the stop. Claude writes only what is not worth the
-four days: mocks, deploy scripts, the CRE TypeScript workflow, and the running feedback log.
+four days: mocks, deploy scripts, and the running feedback log.
 
 ---
 
@@ -21,7 +21,7 @@ four days: mocks, deploy scripts, the CRE TypeScript workflow, and the running f
 - [ ] 7 — HeritRegistry
 - [ ] 8 — ClaimManager
 - [ ] 9 — LivenessAttestor
-- [ ] 10 — The CRE workflow
+- [ ] 10 — The verification backend
 - [ ] 11 — Hand off to the frontend
 - [ ] 12 — The demo script
 - [ ] 13 — Record and submit
@@ -60,21 +60,31 @@ roles in those free slots, so unlock is literally
 gate is `hasRoles`. Enhanced Access Control does the work its name describes rather than
 sitting beside a boolean we keep ourselves.
 
-### 2. A Chainlink CRE confidential workflow replaces the backend attestor
+### 2. Selfie Check is the thesis, so the attestor is an EIP-712 verifier
 
-`ARCHITECTURE.md` §8 names the attestor signing key as "the biggest centralization point in
-the hackathon build". CRE removes it: several DON nodes each call World's Cloud Verify
-endpoint and reach consensus before a report reaches Sepolia.
+Selfie Check is what makes Herit's dead-man's switch different from a `lastActive` timestamp:
+a recurring *liveness* check, not a signature. It runs on World ID 3.0 and is verifiable
+**only through the Cloud Verify API**, so a backend sits between the proof and the chain. That
+is a constraint of the credential, not a design preference.
 
-The Chainlink track requires a Chainlink service to make an on-chain state change, which
-this satisfies. `LivenessAttestor.sol` becomes a CRE report receiver and accepts nothing
-else.
+`LivenessAttestor.sol` therefore verifies an **EIP-712 attestation** signed by the backend after
+Cloud Verify returns a pass: `{estateId, subject, action, nonce, expiry}`. Action-scoping and
+the nonce stop a check-in proof being replayed as a claim, or across estates. The user sends
+the transaction, so the backend never needs gas or an on-chain key.
 
-One correction to the original reasoning: the Cloud Verify endpoint takes no API key, so
-"the secret stays in the enclave" is not why the workflow is confidential. The two real
-reasons are consensus in place of a single key, and keeping the World ID nullifier private.
-A nullifier is a stable per-person identifier, and writing it on-chain would link the same
-human across every estate they touch.
+**A finding worth recording, which does not change this.** The World ID Router *is* deployed on
+Ethereum Sepolia at `0x469449f251692e0779667583026b5a1e99512157`, next to the ENSv2 set —
+verified live, `routeFor(1)` returns `0xb2EaD588f14e69266d1b87936b75325181377076` with a current
+root and `verifyProof` reverts `NonExistentRoot()` on junk. But on-chain verification is
+`groupId = 1`, Orb only, and Selfie Check is not an Orb credential. It stays available for the
+**heir claim**, which is a one-time uniqueness gate rather than a liveness one. Optional, and
+only if the ENS and World halves are finished early.
+
+**The nullifier is still the interesting part.** Cloud Verify returns a nullifier that is stable
+per human per action, so the backend can bind an estate to a person: the first check-in records
+`keccak256(nullifier, salt)` against the estate, and every later one must match. A stolen key
+cannot check in, because the thief is a different human. Salted, because a raw nullifier would
+link the same person across every estate they touch.
 
 ---
 
@@ -105,9 +115,11 @@ express. The heir role grant at unlock happens in registry B.
 | Heir shares | Percentage per heir per token, a two-key matrix |
 | Death proof | Timer and grace only. No executor, no death oracle |
 | Clock transitions | Open to any caller, driven by a script on cue |
-| CRE job | Confidential workflow verifies both check-in and claim, one workflow |
-| CRE report | `estateId`, pass flag, and a nullifier hash salted with a vault secret |
-| Attestor contract | CRE reports only, no signed fallback and no owner override |
+| World ID credential | Selfie Check (`selfieCheckLegacy`), protocol 3.0 — the liveness thesis |
+| World ID verification | Cloud Verify in the backend, then an EIP-712 attestation checked on Sepolia |
+| Attestor contract | Signed attestations only. No owner override, no unsigned fallback |
+| Proof binding | `{estateId, subject, action, nonce, expiry}`, so a proof cannot move between estates or between check-in and claim |
+| Nullifier | Salted, bound to the estate on first check-in, required to match on every later one |
 | Unlock reach | Heir subnames only, the grantor's own name is untouched |
 | Name model | Herit owns `herit.eth` and issues grantor subnames under it |
 | Registration | Grantor onboarding is one free transaction, no commit wait |
@@ -115,7 +127,7 @@ express. The heir role grant at unlock happens in registry B.
 | Demo assets | ETH plus the deployed `MockUSDC` and `MockDAI`, so no token to deploy |
 | Demo clock | Minutes |
 | Tests | Only on request |
-| If time runs out | Chainlink slips first, ENS and World ship |
+| If time runs out | One estate, two heirs, ETH plus one token. ENS ships first, World second |
 
 ---
 
@@ -124,19 +136,22 @@ express. The heir role grant at unlock happens in registry B.
 ```
 Frontend (teammate)
   └─ IDKit selfieCheckLegacy preset → proof payload
-        │ HTTP trigger
-        ▼
-CRE confidential workflow  (TypeScript, WASM)      ← Claude writes
-  ├─ handlerInTee(...)                       runs in an AWS Nitro enclave
-  ├─ POST developer.world.org/api/v4/verify/{rp_id}
-  ├─ getSecret(NULLIFIER_SALT) → keccak(nullifier, salt)
-  ├─ usingTheDons()                          BFT consensus
-  └─ evmClient.writeReport(...)              → Sepolia
         │
         ▼
-LivenessAttestor.onReport(metadata, report)  ← only the CRE Forwarder
-  ├─ kind = checkin → HeritRegistry.checkIn(estateId)
-  └─ kind = claim   → ClaimManager.claim(estateId, heirLabel)
+Herit backend  (Next.js route handler)             ← Claude writes
+  ├─ POST developer.world.org/api/v4/verify/{rp_id}
+  ├─ keccak256(nullifier, NULLIFIER_SALT)
+  └─ EIP-712 sign { estateId, subject, action, nonce, expiry, commitment }
+        │ handed back to the user, who sends the transaction
+        ▼
+LivenessAttestor.checkIn / .claim  (Sepolia)
+  ├─ ECDSA.recover == HERIT_ATTESTOR
+  ├─ nonce unused, expiry in the future, action matches the entrypoint
+  ├─ checkin → commitment must match the one bound to this estate
+  ├─ claim   → commitment must be unused for this estate
+  └─ then:
+       ├─ HeritRegistry.checkIn(estateId)
+       └─ ClaimManager.claim(estateId, heirLabel)
         │
 HeritRegistry ──unlock──▶ AccessControlGate ──▶ estate UserRegistry B
                                                  grantRoles(heirLabel,
@@ -147,13 +162,12 @@ ClaimManager ──hasRoles?──▶ estate UserRegistry B
 
 ---
 
-## Track gates, both outside our control
+## Track gates
 
-- **World ID Sandbox** — requested, awaiting a response. Needed for a real Selfie Check.
-  Until it lands, the workflow runs against the verify endpoint with a recorded proof
-  payload.
-- **CRE deploy access** — granted. Simulation runs locally with `cre workflow simulate`;
-  deployment is what produces the on-chain state change the prize requires.
+- **World ID Sandbox access** — requested, awaiting a response. Needed to run a real Selfie
+  Check, since the credential is behind an access request. Until it lands, the backend runs
+  against the verify endpoint with a recorded proof payload and every other layer is unchanged.
+- **The Selfie Check flag on the app id**, which is granted separately from sandbox access.
 
 ---
 
@@ -382,49 +396,71 @@ Claude writes alongside this: `script/DeployHerit.s.sol`,
 
 ---
 
-# Day 3 — CRE and wiring
+# Day 3 — World ID and wiring
 
 ## Checkpoint 9 — LivenessAttestor
 
-**Goal.** Accept a CRE report and nothing else.
+**Goal.** Accept a backend-signed attestation and nothing else.
 
-**Understand first.** CRE writes through a Forwarder contract that calls `onReport` on the
-consumer. Trust comes from two checks: the caller is the Forwarder, and the workflow owner in
-the metadata is ours. The metadata is packed rather than ABI encoded, so confirm the layout
-against the CRE receiver docs before writing the decode.
+**Understand first.** EIP-712 signs *typed structured data* rather than a hash, so a wallet or
+a verifier can show what is being signed. Two pieces do the work: a domain separator, which
+binds signatures to this contract on this chain, and a type hash for the struct. Get either
+wrong and every signature fails to recover. OpenZeppelin's `EIP712` and `ECDSA` supply both —
+do not hand-roll the encoding.
 
 **Write.**
 
 ```solidity
-function onReport(bytes calldata metadata, bytes calldata report) external {
-    require(msg.sender == FORWARDER, NotForwarder());
-    (bytes32 workflowId, address workflowOwner, bytes10 workflowName) = _decode(metadata);
-    require(workflowOwner == HERIT_WORKFLOW_OWNER, WrongWorkflowOwner());
-    (uint8 kind, uint256 estateId, uint256 heirLabel, bytes32 commitment) =
-        abi.decode(report, (uint8, uint256, uint256, bytes32));
-    ...
+struct Attestation {
+    uint256 estateId;
+    address subject;      // the grantor, or the claiming heir
+    bytes32 action;       // keccak256("checkin") or keccak256("claim")
+    uint256 heirLabelhash; // zero for a check-in
+    bytes32 commitment;   // keccak256(worldIdNullifier, salt)
+    uint256 nonce;
+    uint256 expiry;
 }
+
+function checkIn(Attestation calldata a, bytes calldata signature) external;
+function claim(Attestation calldata a, bytes calldata signature) external;
 ```
 
-**Verified at the stop.** Both checks are present. Either one alone lets anybody call it.
+Four checks, in this order, before either call is forwarded:
 
-## Checkpoint 10 — The CRE workflow
+1. `ECDSA.recover(_hashTypedDataV4(...), signature) == I_ATTESTOR_SIGNER`.
+2. `a.expiry > block.timestamp`, and `a.nonce` unused — then mark it used.
+3. `a.action` matches the entrypoint. Without this, a claim attestation is a check-in.
+4. `a.commitment`: for a check-in it must equal the commitment bound to this estate, and the
+   first check-in is what binds it. For a claim it must be unused for this estate.
 
-Claude writes this and walks through it, so it can be explained at judging.
+Check 4 is the interesting one. The commitment is a salted World ID nullifier, which is stable
+per human, so binding it once means a stolen key cannot check in afterwards — the thief is a
+different person. It is also the sybil gate on claims.
 
-`cre init --template=hello-confidential-workflows-ts`. Inside `handlerInTee`: read the
-trigger payload, POST to `https://developer.world.org/api/v4/verify/{rp_id}` with
-`protocol_version` `3.0` (Selfie Check runs on World ID 3.0 and has no 4.0 support), read
-`nullifier` from the response, salt it with `getSecret("NULLIFIER_SALT")`, then
-`usingTheDons()` and `evmClient.writeReport`. The action string decides the report kind:
-`checkin:{estateId}` or `claim:{estateId}:{heirLabel}`.
+**Verified at the stop.** That a second check-in whose commitment differs reverts, and that a
+claim attestation cannot be replayed into `checkIn`.
 
-Run `cre workflow simulate` first — it makes real calls to the live verify API without
-needing deployment. Deploy once the report shape is settled, then confirm a real transaction
-lands on Sepolia.
+## Checkpoint 10 — The verification backend
+
+Claude writes this, so it can be explained at judging. A Next.js route handler in `frontend/`,
+not a separate service.
+
+1. `POST /api/verify` receives the IDKit payload plus the estate id and the action.
+2. Forwards it as-is to `https://developer.world.org/api/v4/verify/{rp_id}` — "no field
+   remapping is required".
+3. On a pass, reads `nullifier` from the response and computes
+   `keccak256(nullifier, NULLIFIER_SALT)`. The salt never leaves the server: a raw nullifier
+   on-chain would link the same human across every estate they touch.
+4. Signs the `Attestation` struct with the attestor key and returns it to the frontend, which
+   sends the transaction itself.
+
+The signing key is the trust point, and it is worth being straight about that in the video:
+narrow, single-purpose, domain-separated to this contract, replay-protected by nonce and
+expiry, and holding no funds. What it cannot do is move money — it can only assert that a
+Selfie Check passed.
 
 **Verified at the stop.** Explaining back, in your own words, why the nullifier is salted
-rather than written raw. That answer is worth points with both World and Chainlink judges.
+rather than written raw. That answer is worth points with the World judges.
 
 ## Checkpoint 11 — Hand off to the frontend
 
@@ -458,10 +494,9 @@ logs every rough edge as it comes up; you write the final version in your own vo
 
 | If | Then |
 |---|---|
-| Sandbox access never arrives | Drive the workflow with a recorded proof payload. Every other layer is unchanged and the video says so plainly. |
-| CRE deployment fails on demo day | Ship the simulation recording and the deployed receiver contract. The ENS and World halves stand on their own. |
+| Sandbox access never arrives | Drive the backend with a recorded Selfie Check payload. Every other layer is unchanged and the video says so plainly. |
 | The frozen ENS addresses misbehave | Deploy a `PermissionedRegistry` from the submodule directly and run against that, noting the substitution. |
-| Time runs out | One estate, two heirs, ETH plus the mock token. Chainlink slips before ENS or World. |
+| Time runs out | One estate, two heirs, ETH plus the mock token. The backend can serve a recorded proof; ENS cannot be faked. |
 
 ---
 
@@ -480,8 +515,8 @@ End to end on Sepolia:
 1. `forge script script/DeployHerit.s.sol --rpc-url sepolia_eth --broadcast`
 2. `forge script script/SetupEstate.s.sol --rpc-url sepolia_eth --broadcast`
 3. `cast call $USER_REGISTRY "hasRoles(uint256,uint256,address)" $HEIR_RESOURCE $ROLE_HEIR_CLAIM $HEIR` returns false
-4. Run a Selfie Check from the frontend, and confirm `CheckedIn` on `HeritRegistry` with the
-   transaction sent by the CRE Forwarder rather than by us
+4. Run a Selfie Check from the frontend, and confirm `CheckedIn` on `HeritRegistry` from a
+   transaction carrying a backend-signed attestation
 5. Wait out the interval and grace, then
    `cast send $HERIT_REGISTRY "pokeExpiry(uint256)" $ESTATE_ID`
 6. Repeat step 3 and confirm it now returns true
@@ -491,12 +526,11 @@ End to end on Sepolia:
 
 ## Open items to confirm during the build
 
-- The exact CRE `onReport` metadata layout, before writing the decode.
-- That Ethereum Sepolia is a CRE write target. The confidential-workflows template
-  references Sepolia transactions, and the supported-networks table would not load to
-  confirm it directly.
-- Whether the Selfie Check flag is enabled on the app id, which is separate from sandbox app
-  access.
+- Whether the Selfie Check flag is enabled on the app id, which is separate from sandbox access.
+- The exact `selfieCheckLegacy` result shape in the current IDKit, and whether a legacy preset
+  needs an `rp_context` signature from the RP signing key. If it does, that is a second key,
+  signing proof *requests* rather than attestations.
+- Which field of the v4 verify response carries the nullifier for a 3.0 credential.
 
 ---
 
@@ -510,11 +544,11 @@ End to end on Sepolia:
 | Enhanced Access Control | https://docs.ens.domains/ensv2/enhanced-access-control |
 | Contract developer tutorial | https://docs.ens.domains/ensv2/tutorial-contract-developers |
 | World ID docs | https://docs.world.org/ |
-| Selfie Check in IDKit | https://docs.world.org/world-id/idkit/credentials#selfie-check-beta |
+| Selfie Check credential | https://docs.world.org/world-id/credentials/11 |
 | Testing Selfie Check in sandbox | https://docs.world.org/world-id/sandbox/testing-selfie-check |
-| Chainlink CRE | https://docs.chain.link/cre |
-| Confidential workflows template | https://docs.chain.link/cre-templates/hello-confidential-workflows |
-| Template source | https://github.com/smartcontractkit/cre-templates/tree/main/starter-templates/confidential-workflows |
+| IDKit integration | https://docs.world.org/world-id/idkit/integrate |
+| IDKit React presets | https://docs.world.org/world-id/idkit/react |
+| On-chain verification (Orb only, optional claim gate) | https://docs.world.org/world-id/idkit/onchain-verification |
 
 Local sources worth reading directly, since they are authoritative and already checked out:
 
