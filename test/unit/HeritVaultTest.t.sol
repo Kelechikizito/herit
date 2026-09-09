@@ -17,27 +17,8 @@ import {
     RejectingHeir
 } from "test/utils/VaultMocks.sol";
 
-/// @dev Written before `HeritVault` exists, so it is a specification as much as a test: until the
-///      contract below is written the file does not compile, and every failure names a rule the
-///      vault has to obey. The API it assumes, from `documents/checkpoint-6-guide.md`:
-///
-///        constructor(IPermissionedRegistry grantorRegistry,
-///                    IHeritRegistry heritRegistry,
-///                    address claimManager)
-///
-///        depositETH(uint256 estateId) payable
-///        depositERC20(uint256 estateId, address token, uint256 amount)
-///        withdraw(uint256 estateId, address token, uint256 amount)
-///        snapshot(uint256 estateId)                                        HeritRegistry only
-///        payOut(uint256 estateId, address token, address to, uint16 shareBps)
-///                                                          returns (uint256)  ClaimManager only
-///
-///        balanceOf(uint256 estateId, address token)  view returns (uint256)
-///        snapshotOf(uint256 estateId, address token) view returns (uint256)
-///
-///      Rename anything here freely — the names are not the point, the arithmetic is. Every
-///      `vm.expectRevert()` is deliberately untyped so your error names stay yours; tighten them
-///      to selectors once they exist.
+/// @dev Every `vm.expectRevert()` here is untyped on purpose, so renaming an error in `HeritVault`
+///      never breaks a test. Tighten them to selectors if you want the stronger check.
 contract HeritVaultTest is Test {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -45,10 +26,6 @@ contract HeritVaultTest is Test {
 
     /// @dev The key ETH is filed under, the same value the share matrix must use in Checkpoint 7.
     address internal constant NATIVE = address(0);
-
-    /// @dev The cap on distinct tokens per estate. If you pick a different number, change it here
-    ///      too — `testDepositBeyondTheTokenCapReverts` is the only place it is assumed.
-    uint256 internal constant MAX_TOKENS = 10;
 
     /// @dev The estate id is the grantor's labelhash, exactly as `AccessControlGate` computes it.
     uint256 internal constant ESTATE_ID = uint256(keccak256(bytes("alice")));
@@ -96,26 +73,58 @@ contract HeritVaultTest is Test {
                            DEPOSIT AND WITHDRAW
     //////////////////////////////////////////////////////////////*/
 
-    function testGrantorDepositsAndWithdrawsEth() public {
+    function testGrantorDepositsEth() public {
+        // ARRANGE
+        vm.prank(alice);
+
+        // ACT
+        vault.depositETH{value: 10 ether}(ESTATE_ID);
+
+        // ASSERT
+        assertEq(vault.balanceOf(ESTATE_ID, NATIVE), 10 ether, "deposit not credited");
+        assertEq(address(vault).balance, 10 ether, "the ETH did not arrive");
+        assertEq(vault.tokensOf(ESTATE_ID).length, 1, "ETH not listed for the snapshot walk");
+    }
+
+    function testGrantorWithdrawsEth() public {
+        // ARRANGE
         vm.prank(alice);
         vault.depositETH{value: 10 ether}(ESTATE_ID);
-        assertEq(vault.balanceOf(ESTATE_ID, NATIVE), 10 ether, "deposit not credited");
 
+        // ACT
         vm.prank(alice);
         vault.withdraw(ESTATE_ID, NATIVE, 4 ether);
+
+        // ASSERT
         assertEq(vault.balanceOf(ESTATE_ID, NATIVE), 6 ether, "withdrawal not debited");
         assertEq(alice.balance, 994 ether, "money did not reach the grantor");
     }
 
-    function testGrantorDepositsAndWithdrawsErc20() public {
+    function testGrantorDepositsErc20() public {
+        // ARRANGE
+        vm.startPrank(alice);
+        usdc.approve(address(vault), 500e6);
+
+        // ACT
+        vault.depositERC20(ESTATE_ID, address(usdc), 500e6);
+        vm.stopPrank();
+
+        // ASSERT
+        assertEq(vault.balanceOf(ESTATE_ID, address(usdc)), 500e6, "deposit not credited");
+        assertEq(usdc.balanceOf(address(vault)), 500e6, "the tokens did not arrive");
+    }
+
+    function testGrantorWithdrawsErc20() public {
+        // ARRANGE
         vm.startPrank(alice);
         usdc.approve(address(vault), 500e6);
         vault.depositERC20(ESTATE_ID, address(usdc), 500e6);
-        assertEq(vault.balanceOf(ESTATE_ID, address(usdc)), 500e6, "deposit not credited");
 
+        // ACT
         vault.withdraw(ESTATE_ID, address(usdc), 200e6);
         vm.stopPrank();
 
+        // ASSERT
         assertEq(vault.balanceOf(ESTATE_ID, address(usdc)), 300e6, "withdrawal not debited");
         assertEq(usdc.balanceOf(alice), 700e6, "tokens did not reach the grantor");
     }
@@ -123,16 +132,21 @@ contract HeritVaultTest is Test {
     /// @dev A stranger depositing is not generous, it is a gas-griefing vector: every new token
     ///      lengthens the list `snapshot` has to walk at unlock.
     function testOnlyTheGrantorCanDeposit() public {
+        // ARRANGE
         vm.deal(stranger, 1 ether);
+
+        // ACT / ASSERT
         vm.prank(stranger);
         vm.expectRevert();
         vault.depositETH{value: 1 ether}(ESTATE_ID);
     }
 
     function testOnlyTheGrantorCanWithdraw() public {
+        // ARRANGE
         vm.prank(alice);
         vault.depositETH{value: 1 ether}(ESTATE_ID);
 
+        // ACT / ASSERT
         vm.prank(stranger);
         vm.expectRevert();
         vault.withdraw(ESTATE_ID, NATIVE, 1 ether);
@@ -141,21 +155,25 @@ contract HeritVaultTest is Test {
     /// @dev Registry A returns the zero owner, so there is no grantor and the money would land in a
     ///      mapping key nobody can reach.
     function testDepositToAnUnopenedEstateReverts() public {
+        // ACT / ASSERT
         vm.prank(alice);
         vm.expectRevert();
         vault.depositETH{value: 1 ether}(UNOPENED_ESTATE_ID);
     }
 
     function testZeroValueDepositReverts() public {
+        // ACT / ASSERT
         vm.prank(alice);
         vm.expectRevert();
         vault.depositETH{value: 0}(ESTATE_ID);
     }
 
     function testWithdrawingMoreThanTheBalanceReverts() public {
+        // ARRANGE
         vm.prank(alice);
         vault.depositETH{value: 1 ether}(ESTATE_ID);
 
+        // ACT / ASSERT
         vm.prank(alice);
         vm.expectRevert();
         vault.withdraw(ESTATE_ID, NATIVE, 2 ether);
@@ -164,19 +182,25 @@ contract HeritVaultTest is Test {
     /// @dev Grace is the false-alarm window. The grantor is presumed alive, so their money stays
     ///      theirs — this is the case a status check written as `!= Active` would get wrong.
     function testWithdrawStillWorksDuringGrace() public {
+        // ARRANGE
         vm.prank(alice);
         vault.depositETH{value: 5 ether}(ESTATE_ID);
-
         heritRegistry.setStatus(ESTATE_ID, IHeritRegistry.Status.Grace);
 
+        // ACT
         vm.prank(alice);
         vault.withdraw(ESTATE_ID, NATIVE, 5 ether);
+
+        // ASSERT
         assertEq(vault.balanceOf(ESTATE_ID, NATIVE), 0, "grace withdrawal was refused");
+        assertEq(alice.balance, 1_000 ether, "the grantor did not get their money back");
     }
 
     function testWithdrawRevertsOnceUnlocked() public {
+        // ARRANGE
         _fundAndUnlock(10 ether);
 
+        // ACT / ASSERT
         vm.prank(alice);
         vm.expectRevert();
         vault.withdraw(ESTATE_ID, NATIVE, 1 ether);
@@ -185,8 +209,10 @@ contract HeritVaultTest is Test {
     /// @dev The snapshot is already taken, so a late deposit is invisible to every percentage and
     ///      withdrawable by nobody. Bounce it at the door rather than swallowing it.
     function testDepositRevertsOnceUnlocked() public {
+        // ARRANGE
         _fundAndUnlock(10 ether);
 
+        // ACT / ASSERT
         vm.prank(alice);
         vm.expectRevert();
         vault.depositETH{value: 1 ether}(ESTATE_ID);
@@ -197,43 +223,50 @@ contract HeritVaultTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testOnlyHeritRegistryCanSnapshot() public {
+        // ARRANGE
         vm.prank(alice);
         vault.depositETH{value: 1 ether}(ESTATE_ID);
 
+        // ACT / ASSERT
         vm.prank(stranger);
         vm.expectRevert();
         vault.snapshot(ESTATE_ID);
     }
 
     function testSnapshotCopiesEveryTokenTheEstateHolds() public {
+        // ARRANGE
         vm.startPrank(alice);
         vault.depositETH{value: 7 ether}(ESTATE_ID);
         usdc.approve(address(vault), 300e6);
         vault.depositERC20(ESTATE_ID, address(usdc), 300e6);
         vm.stopPrank();
 
+        // ACT
         _unlock();
 
+        // ASSERT
         assertEq(vault.snapshotOf(ESTATE_ID, NATIVE), 7 ether, "ETH not snapshotted");
         assertEq(vault.snapshotOf(ESTATE_ID, address(usdc)), 300e6, "ERC20 not snapshotted");
+        assertTrue(vault.snapshotTaken(ESTATE_ID), "the estate was not marked snapshotted");
     }
 
     /// @dev `pokeExpiry` is permissionless, so two callers can poke in the same block. The second
     ///      snapshot must change nothing — re-running it after a payout would shrink the ruler and
     ///      short-change whoever claims last — and must not revert, or the second poke fails whole.
     function testSnapshotTwiceChangesNothing() public {
+        // ARRANGE
         _fundAndUnlock(100 ether);
-
         vm.prank(claimManager);
         vault.payOut(ESTATE_ID, NATIVE, son, SON_SHARE_BPS);
 
+        // ACT
         vm.prank(address(heritRegistry));
         vault.snapshot(ESTATE_ID);
-
-        assertEq(vault.snapshotOf(ESTATE_ID, NATIVE), 100 ether, "the ruler moved");
-
         vm.prank(claimManager);
         vault.payOut(ESTATE_ID, NATIVE, daughter, DAUGHTER_SHARE_BPS);
+
+        // ASSERT
+        assertEq(vault.snapshotOf(ESTATE_ID, NATIVE), 100 ether, "the ruler moved");
         assertEq(daughter.balance, 40 ether, "second heir short-changed by a re-snapshot");
     }
 
@@ -242,25 +275,40 @@ contract HeritVaultTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testOnlyClaimManagerCanPayOut() public {
+        // ARRANGE
         _fundAndUnlock(10 ether);
 
+        // ACT / ASSERT
         vm.prank(stranger);
         vm.expectRevert();
         vault.payOut(ESTATE_ID, NATIVE, stranger, 10_000);
+    }
+
+    function testPayOutBeforeTheSnapshotReverts() public {
+        // ARRANGE
+        vm.prank(alice);
+        vault.depositETH{value: 10 ether}(ESTATE_ID);
+
+        // ACT / ASSERT
+        vm.prank(claimManager);
+        vm.expectRevert();
+        vault.payOut(ESTATE_ID, NATIVE, son, SON_SHARE_BPS);
     }
 
     /// @dev The checkpoint in one test. Son takes 60% first; 40 ether is left; 40% of what is left
     ///      would be 16. Daughter must get 40, which is only true if her share is measured against
     ///      the snapshot rather than the live balance.
     function testSharesAreMeasuredAgainstTheSnapshotNotTheBalance() public {
+        // ARRANGE
         _fundAndUnlock(100 ether);
 
-        vm.prank(claimManager);
+        // ACT
+        vm.startPrank(claimManager);
         uint256 paidToSon = vault.payOut(ESTATE_ID, NATIVE, son, SON_SHARE_BPS);
-
-        vm.prank(claimManager);
         uint256 paidToDaughter = vault.payOut(ESTATE_ID, NATIVE, daughter, DAUGHTER_SHARE_BPS);
+        vm.stopPrank();
 
+        // ASSERT
         assertEq(paidToSon, 60 ether, "wrong amount reported for the first heir");
         assertEq(paidToDaughter, 40 ether, "the second heir was paid a share of the leftovers");
         assertEq(son.balance, 60 ether, "first heir underpaid");
@@ -269,18 +317,20 @@ contract HeritVaultTest is Test {
     }
 
     function testErc20SharesSplitExactly() public {
+        // ARRANGE
         vm.startPrank(alice);
         usdc.approve(address(vault), 1_000e6);
         vault.depositERC20(ESTATE_ID, address(usdc), 1_000e6);
         vm.stopPrank();
-
         _unlock();
 
-        vm.prank(claimManager);
+        // ACT
+        vm.startPrank(claimManager);
         vault.payOut(ESTATE_ID, address(usdc), son, SON_SHARE_BPS);
-        vm.prank(claimManager);
         vault.payOut(ESTATE_ID, address(usdc), daughter, DAUGHTER_SHARE_BPS);
+        vm.stopPrank();
 
+        // ASSERT
         assertEq(usdc.balanceOf(son), 600e6, "first heir underpaid");
         assertEq(usdc.balanceOf(daughter), 400e6, "second heir underpaid");
         assertEq(vault.balanceOf(ESTATE_ID, address(usdc)), 0, "the estate should be empty");
@@ -289,14 +339,17 @@ contract HeritVaultTest is Test {
     /// @dev Truncation is fine and every vault has it. What is not fine is the total exceeding the
     ///      snapshot, which is what a rounding "fix" usually introduces.
     function testRoundingDustStaysInTheVault() public {
+        // ARRANGE
         _fundAndUnlock(100 wei);
 
+        // ACT
         vm.startPrank(claimManager);
         vault.payOut(ESTATE_ID, NATIVE, son, 3333);
         vault.payOut(ESTATE_ID, NATIVE, daughter, 3333);
         vault.payOut(ESTATE_ID, NATIVE, stranger, 3333);
         vm.stopPrank();
 
+        // ASSERT
         assertEq(son.balance, 33, "truncation went the wrong way");
         assertEq(vault.balanceOf(ESTATE_ID, NATIVE), 1, "dust should stay put, not be swept");
     }
@@ -305,25 +358,29 @@ contract HeritVaultTest is Test {
     ///      which is not enough for one to write storage on receipt, so this fails unless the vault
     ///      pays with `call`.
     function testPayOutReachesAContractWallet() public {
+        // ARRANGE
         ContractWalletHeir wallet = new ContractWalletHeir();
         _fundAndUnlock(10 ether);
 
+        // ACT
         vm.prank(claimManager);
         vault.payOut(ESTATE_ID, NATIVE, address(wallet), 10_000);
 
+        // ASSERT
         assertEq(wallet.received(), 10 ether, "a contract wallet could not be paid");
     }
 
     /// @dev A failed send must take the bookkeeping down with it. Marking the payout done and
     ///      losing the ETH is the worst outcome available to this contract.
     function testPayOutRevertsWhenTheHeirRejectsEth() public {
+        // ARRANGE
         RejectingHeir rejecting = new RejectingHeir();
         _fundAndUnlock(10 ether);
 
+        // ACT / ASSERT
         vm.prank(claimManager);
         vm.expectRevert();
         vault.payOut(ESTATE_ID, NATIVE, address(rejecting), 10_000);
-
         assertEq(vault.balanceOf(ESTATE_ID, NATIVE), 10 ether, "balance moved on a failed send");
     }
 
@@ -331,24 +388,39 @@ contract HeritVaultTest is Test {
                               AWKWARD TOKENS
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev 100 sent, 10% burned in flight, 90 arrived. Crediting 100 would leave the estate's
-    ///      books ten tokens richer than the vault, and the last heir's transfer would revert.
+    /// @dev 100 sent, 10% burned in flight, 90 arrived. Crediting 100 would leave the estate's books
+    ///      ten tokens richer than the vault, and the last heir's transfer would revert.
     function testFeeOnTransferTokenCreditsWhatArrived() public {
+        // ARRANGE
         FeeOnTransferERC20 fee = new FeeOnTransferERC20();
         fee.mint(alice, 100e18);
+        vm.startPrank(alice);
+        fee.approve(address(vault), 100e18);
 
+        // ACT
+        vault.depositERC20(ESTATE_ID, address(fee), 100e18);
+        vm.stopPrank();
+
+        // ASSERT
+        assertEq(vault.balanceOf(ESTATE_ID, address(fee)), 90e18, "credited the amount asked for");
+        assertEq(fee.balanceOf(address(vault)), 90e18, "the books and the holdings disagree");
+    }
+
+    function testFeeOnTransferTokenPaysOutWhatItHolds() public {
+        // ARRANGE
+        FeeOnTransferERC20 fee = new FeeOnTransferERC20();
+        fee.mint(alice, 100e18);
         vm.startPrank(alice);
         fee.approve(address(vault), 100e18);
         vault.depositERC20(ESTATE_ID, address(fee), 100e18);
         vm.stopPrank();
-
-        assertEq(vault.balanceOf(ESTATE_ID, address(fee)), 90e18, "credited the amount asked for");
-
         _unlock();
 
+        // ACT
         vm.prank(claimManager);
         vault.payOut(ESTATE_ID, address(fee), son, 10_000);
 
+        // ASSERT
         assertEq(vault.balanceOf(ESTATE_ID, address(fee)), 0, "the estate should be empty");
         assertEq(IERC20(address(fee)).balanceOf(son), 81e18, "the second fee was not absorbed");
     }
@@ -356,21 +428,38 @@ contract HeritVaultTest is Test {
     /// @dev The token list is walked in a loop at unlock, so its length is a gas budget. Without a
     ///      cap, a confused grantor with a wallet full of airdrops can brick their own estate.
     function testDepositBeyondTheTokenCapReverts() public {
-        vm.startPrank(alice);
+        // ARRANGE
+        vm.prank(alice);
         vault.depositETH{value: 1 ether}(ESTATE_ID);
+        _fillTokenSlots(vault.MAX_TOKENS() - 1);
+        assertEq(vault.tokensOf(ESTATE_ID).length, vault.MAX_TOKENS(), "the estate is not full yet");
 
-        for (uint256 i = 0; i < MAX_TOKENS; i++) {
-            MockERC20 token = new MockERC20("Filler", "FILL", 18);
-            token.mint(alice, 1e18);
-            token.approve(address(vault), 1e18);
-
-            /// @dev ETH already took one slot, so the last token in this loop is one too many.
-            if (i == MAX_TOKENS - 1) {
-                vm.expectRevert();
-            }
-            vault.depositERC20(ESTATE_ID, address(token), 1e18);
-        }
+        // ACT / ASSERT
+        MockERC20 oneTooMany = new MockERC20("Filler", "FILL", 18);
+        oneTooMany.mint(alice, 1e18);
+        vm.startPrank(alice);
+        oneTooMany.approve(address(vault), 1e18);
+        vm.expectRevert();
+        vault.depositERC20(ESTATE_ID, address(oneTooMany), 1e18);
         vm.stopPrank();
+    }
+
+    /// @dev Topping up a token already listed is always allowed; the cap is on the list, not the money.
+    function testToppingUpAListedTokenIgnoresTheCap() public {
+        // ARRANGE
+        _fillTokenSlots(vault.MAX_TOKENS());
+        address firstToken = vault.tokensOf(ESTATE_ID)[0];
+        MockERC20(firstToken).mint(alice, 5e18);
+
+        // ACT
+        vm.startPrank(alice);
+        MockERC20(firstToken).approve(address(vault), 5e18);
+        vault.depositERC20(ESTATE_ID, firstToken, 5e18);
+        vm.stopPrank();
+
+        // ASSERT
+        assertEq(vault.balanceOf(ESTATE_ID, firstToken), 6e18, "top-up refused on a full estate");
+        assertEq(vault.tokensOf(ESTATE_ID).length, vault.MAX_TOKENS(), "the list grew on a top-up");
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -389,5 +478,17 @@ contract HeritVaultTest is Test {
         vm.prank(alice);
         vault.depositETH{value: amount}(ESTATE_ID);
         _unlock();
+    }
+
+    /// @dev Fills `count` slots in the estate's token list with throwaway ERC20s, one token each.
+    function _fillTokenSlots(uint256 count) internal {
+        for (uint256 i = 0; i < count; i++) {
+            MockERC20 token = new MockERC20("Filler", "FILL", 18);
+            token.mint(alice, 1e18);
+            vm.startPrank(alice);
+            token.approve(address(vault), 1e18);
+            vault.depositERC20(ESTATE_ID, address(token), 1e18);
+            vm.stopPrank();
+        }
     }
 }
