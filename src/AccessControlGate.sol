@@ -13,6 +13,7 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {IVerifiableFactoryLogic} from "src/interfaces/IVerifiableFactoryLogic.sol";
 import {CloneProxyBytecode} from "@ensdomains/verifiable-factory/CloneProxyBytecode.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 ///
 ///      herit.eth                     owned by the deployer EOA
@@ -53,8 +54,8 @@ contract AccessControlGate is ReentrancyGuard {
     error AccessControlGate__EstateExpired(uint256 estateId);
     /// @dev `renewEstate` may not push an expiry beyond `MAX_RENEWAL_WINDOW`, since it can never be reduced.
     error AccessControlGate__ExpiryTooFar(uint64 newExpiry, uint64 maxExpiry);
+
     /// @dev `namehash("herit.eth")` was zero, which would silently write every record to the wrong node.
-    error AccessControlGate__ZeroNode();
 
     /*//////////////////////////////////////////////////////////////
                            TYPE DECLARATIONS
@@ -78,6 +79,14 @@ contract AccessControlGate is ReentrancyGuard {
     /// @dev SLIP-44 coin type for ETH, the key an heir's `addr` record is written under.
     uint256 private constant COIN_TYPE_ETH = 60;
 
+    /// @dev `herit.eth` DNS-encoded: each label prefixed with its length, terminated by a zero
+    ///      byte. `\x05herit\x03eth\x00`. Every setter on the deployed `PermissionedResolver`
+    ///      takes a name in this form rather than a namehash, and `NameCoder.addLabel` prepends
+    ///      the grantor and heir labels onto it. `constant` and not `immutable` because Solidity
+    ///      permits neither `immutable` nor `constant` of dynamic type to be set in a constructor,
+    ///      and this value never varies.
+    bytes private constant HERIT_NAME = hex"0568657269740365746800";
+
     /// @dev 100% expressed in basis points, the unit `shareBps` is denominated in.
     uint256 private constant BPS_DENOMINATOR = 10_000;
 
@@ -99,7 +108,10 @@ contract AccessControlGate is ReentrancyGuard {
     /// @dev The `PermissionedResolver` this gate holds root write roles on, carrying every heir's `addr`, `herit.relationship` and `herit.share` records.
     address public immutable I_RESOLVER;
 
-    /// @dev `namehash("herit.eth")`, supplied rather than derived because a node can only be built by hashing downwards from its parent.
+    /// @dev `namehash("herit.eth")`, derived from `HERIT_NAME` in the constructor so the two
+    ///      forms of the same name cannot disagree. Nothing in this contract reads it — records
+    ///      are addressed by name now — but `resolve` takes the node inside its inner calldata,
+    ///      so callers reading heir records back need it.
     bytes32 public immutable I_HERIT_NODE;
 
     /// @dev The registry deployed for each estate, and the only path from an estate id to its heirs.
@@ -107,6 +119,8 @@ contract AccessControlGate is ReentrancyGuard {
 
     /// @dev Running total of `shareBps` handed out per estate, because nothing else sums the shares; delete it if `HeritRegistry` becomes the source of truth for the share matrix.
     mapping(uint256 estateId => uint256 allocatedBps) private s_allocatedShareBps;
+
+    mapping(uint256 estateId => string label) private s_estateLabels;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -159,7 +173,6 @@ contract AccessControlGate is ReentrancyGuard {
     ///        script either initializes it with the gate's predicted address as admin, or
     ///        initializes it to the deployer and grants the gate root roles straight after.
     /// @param heritRegistry The estate state machine, and the only caller permitted to unlock.
-    /// @param heritNode `namehash("herit.eth")`, the parent every grantor name descends from.
     /// @dev `heritRegistry` is the one address that cannot exist yet when this contract is
     ///      deployed, because `HeritRegistry` takes the gate's address in its own constructor.
     ///      The cycle is broken with CREATE2 rather than a post-deploy setter: the deploy script
@@ -177,8 +190,7 @@ contract AccessControlGate is ReentrancyGuard {
         address userRegistryImpl,
         IPermissionedRegistry grantorRegistry,
         address resolver,
-        IHeritRegistry heritRegistry,
-        bytes32 heritNode
+        IHeritRegistry heritRegistry
     ) {
         if (
             address(verifiableFactory) == address(0) || userRegistryImpl == address(0)
@@ -187,18 +199,15 @@ contract AccessControlGate is ReentrancyGuard {
         ) {
             revert AccessControlGate__ZeroAddress();
         }
-        // Not an address, so it needs its own check. A zero node would silently write every
-        // record to the wrong place rather than reverting.
-        if (heritNode == bytes32(0)) {
-            revert AccessControlGate__ZeroNode();
-        }
-
         I_VERIFIABLE_FACTORY = verifiableFactory;
         I_USER_REGISTRY_IMPL = userRegistryImpl;
         I_GRANTOR_REGISTRY = grantorRegistry;
         I_RESOLVER = resolver;
         I_HERIT_REGISTRY = heritRegistry;
-        I_HERIT_NODE = heritNode;
+        // Derived, not supplied: `HERIT_NAME` and `I_HERIT_NODE` are the same name in two forms,
+        // and a constructor argument could disagree with the constant. Records would then be
+        // written under one name and read under another, with nothing reverting to say so.
+        I_HERIT_NODE = NameCoder.namehash(HERIT_NAME, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -245,6 +254,7 @@ contract AccessControlGate is ReentrancyGuard {
         );
 
         s_estateRegistries[estateId] = estateRegistry;
+        s_estateLabels[estateId] = label;
 
         // `GRANTOR_NAME_ROLE_BITMAP` withholds `ROLE_SET_SUBREGISTRY`, so the grantor cannot swap
         // registry B for one they control and hand themselves every heir role.
@@ -409,12 +419,12 @@ contract AccessControlGate is ReentrancyGuard {
         string calldata relationship,
         uint16 shareBps
     ) internal {
-        bytes32 heirNode = _childNode(_childNode(I_HERIT_NODE, bytes32(estateId)), bytes32(_labelhash(label)));
+        bytes memory heirName = _heirName(estateId, label);
 
         IHeritResolver resolver = IHeritResolver(I_RESOLVER);
-        resolver.setAddr(heirNode, COIN_TYPE_ETH, abi.encodePacked(heir));
-        resolver.setText(heirNode, "herit.relationship", relationship);
-        resolver.setText(heirNode, "herit.share", Strings.toString(shareBps));
+        resolver.setAddress(heirName, COIN_TYPE_ETH, abi.encodePacked(heir));
+        resolver.setText(heirName, "herit.relationship", relationship);
+        resolver.setText(heirName, "herit.share", Strings.toString(shareBps));
     }
 
     function _estateRegistry(uint256 estateId) internal view returns (IPermissionedRegistry) {
@@ -425,10 +435,9 @@ contract AccessControlGate is ReentrancyGuard {
         return IPermissionedRegistry(registry);
     }
 
-    /// @dev Turns registry-space into resolver-space: the registry addresses a name by its
-    ///      labelhash, the resolver by the namehash of the whole name.
-    function _childNode(bytes32 parent, bytes32 labelhash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(parent, labelhash));
+    /// @dev The heir's full name spelled out, which is the form every resolver setter wants.
+    function _heirName(uint256 estateId, string calldata label) internal view returns (bytes memory) {
+        return NameCoder.addLabel(NameCoder.addLabel(HERIT_NAME, s_estateLabels[estateId]), label);
     }
 
     /// @dev The estate id is the grantor labelhash, which is also what the registry accepts as
