@@ -58,7 +58,18 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     uint64 public constant MIN_GRACE_DURATION = 1 minutes;
     uint64 public constant MAX_GRACE_DURATION = 14 days;
 
+    /// @dev One heir slot: which estate, and which name inside it. An address can hold several,
+    ///      in one estate or across many.
+    struct HeirSlot {
+        uint256 estateId;
+        uint256 heirLabelhash;
+    }
+
     mapping(uint256 estateId => Estate estate) private s_estates;
+
+    /// @dev Every slot an address was registered into, in registration order. Stable: an heir
+    ///      address is fixed at `recordHeir` and there is no path that reassigns it.
+    mapping(address heir => HeirSlot[] slots) private s_slotsOfHeir;
 
     mapping(uint256 estateId => uint256[] heirLabelhashes) private s_heirs;
     mapping(uint256 estateId => mapping(uint256 heirLabelhash => address heir)) private s_heirAddress;
@@ -240,6 +251,7 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
         s_heirAddress[estateId][heirLabelhash] = heir;
         s_heirLabel[estateId][heirLabelhash] = label;
         s_defaultShare[estateId][heirLabelhash] = defaultShareBps;
+        s_slotsOfHeir[heir].push(HeirSlot({estateId: estateId, heirLabelhash: heirLabelhash}));
         s_allocatedDefaultBps[estateId] = uint16(allocated); // forge-lint: disable-next-line(unsafe-typecast) // <= BPS_DENOMINATOR, so the cast is safe
 
         emit HeirRecorded(estateId, heirLabelhash, heir, defaultShareBps);
@@ -426,6 +438,13 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     }
 
     // To check whether a label is available for registration,
+    /// @notice Every estate this address is an heir of, so a connected wallet can find its own.
+    /// @dev The counterpart to `heirsOf`, which reads the other way. Unbounded in principle — an
+    ///      address can be an heir anywhere — so page it off-chain rather than in a transaction.
+    function heirSlotsOf(address heir) external view returns (HeirSlot[] memory) {
+        return s_slotsOfHeir[heir];
+    }
+
     /// @notice Every timer on one estate in a single read, for the dashboard countdown.
     /// @dev `status` is the pending one, not the cached field, so it cannot disagree with
     ///      `statusOf`. Everything else is storage as written.

@@ -114,6 +114,11 @@ contract AccessControlGate is ReentrancyGuard {
 
     mapping(uint256 estateId => string label) private s_estateLabels;
 
+    /// @dev Estates opened for one grantor, in the order they were opened. A hint, not the truth:
+    ///      the grantor name is an ENS name and can be transferred afterwards, and this index does
+    ///      not move with it. Confirm with `I_GRANTOR_REGISTRY.getOwner` before showing it as theirs.
+    mapping(address grantor => uint256[] estateIds) private s_estatesOfGrantor;
+
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -247,6 +252,7 @@ contract AccessControlGate is ReentrancyGuard {
 
         s_estateRegistries[estateId] = estateRegistry;
         s_estateLabels[estateId] = label;
+        s_estatesOfGrantor[grantor].push(estateId);
 
         // `GRANTOR_NAME_ROLE_BITMAP` withholds `ROLE_SET_SUBREGISTRY`, so the grantor cannot swap
         // registry B for one they control and hand themselves every heir role.
@@ -512,6 +518,12 @@ contract AccessControlGate is ReentrancyGuard {
     }
 
     /// @notice The registry deployed for an estate, or the zero address if none.
+    /// @notice Every estate this address opened, so a connected wallet can find its own.
+    /// @dev Ownership can have moved since. The caller checks `getOwner(estateId)` per entry.
+    function estatesOfGrantor(address grantor) external view returns (uint256[] memory) {
+        return s_estatesOfGrantor[grantor];
+    }
+
     function estateRegistryOf(uint256 estateId) external view returns (address) {
         return s_estateRegistries[estateId];
         // Zero means "not opened". Callers that need a hard failure use the internal

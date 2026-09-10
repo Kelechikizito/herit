@@ -173,6 +173,28 @@ contract HeritLifecycleTest is Test {
         assertEq(vault.balanceOf(ESTATE_ID, address(usdc)), 0, "usdc left in the vault");
     }
 
+    /// @notice A wallet can find its own estates without an indexer, in both directions.
+    /// @dev The two reverse indexes are the only reads keyed by address rather than estate id.
+    function testWalletCanFindItsOwnEstates() public {
+        // ARRANGE
+        _openEstateWithHeirs();
+
+        // ACT
+        uint256[] memory opened = gate.estatesOfGrantor(alice);
+        HeritRegistry.HeirSlot[] memory sonSlots = registry.heirSlotsOf(son);
+        HeritRegistry.HeirSlot[] memory strangerSlots = registry.heirSlotsOf(stranger);
+
+        // ASSERT
+        assertEq(opened.length, 1, "grantor index missed the estate");
+        assertEq(opened[0], ESTATE_ID, "grantor index has the wrong estate");
+
+        assertEq(sonSlots.length, 1, "heir index missed the slot");
+        assertEq(sonSlots[0].estateId, ESTATE_ID, "heir slot has the wrong estate");
+        assertEq(sonSlots[0].heirLabelhash, SON_HASH, "heir slot has the wrong label");
+
+        assertEq(strangerSlots.length, 0, "a stranger holds an heir slot");
+    }
+
     /*//////////////////////////////////////////////////////////////
                           THE RECOVERY PATH
     //////////////////////////////////////////////////////////////*/
