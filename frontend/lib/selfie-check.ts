@@ -15,13 +15,17 @@ export type SelfieCheckPurpose =
   | { kind: "checkin"; estateLabel: string }
   | { kind: "claim"; estateLabel: string; heirLabel: string };
 
-export const SELFIE_CHECK_STAGES: readonly { label: string; detail: string }[] = [
-  { label: "opening World App", detail: "MiniKit verify command raised" },
-  { label: "capturing liveness", detail: "orb or device selfie check" },
-  { label: "verifying proof", detail: "World ID Cloud Verify" },
-  { label: "signing attestation", detail: "EIP-712, scoped to action + nonce" },
-  { label: "submitting to Sepolia", detail: "LivenessAttestor.verify()" },
-];
+export const SELFIE_CHECK_STAGES: readonly { label: string; detail: string }[] =
+  [
+    { label: "opening World App", detail: "MiniKit verify command raised" },
+    { label: "capturing liveness", detail: "orb or device selfie check" },
+    { label: "verifying proof", detail: "World ID Cloud Verify" },
+    {
+      label: "signing attestation",
+      detail: "EIP-712, scoped to action + nonce",
+    },
+    { label: "submitting to Sepolia", detail: "LivenessAttestor.verify()" },
+  ];
 
 /** How long each simulated stage holds, in milliseconds. */
 export const STAGE_MS = 620;
@@ -30,7 +34,7 @@ export const STAGE_MS = 620;
 export function actionString(purpose: SelfieCheckPurpose): string {
   return purpose.kind === "checkin"
     ? `checkin:${purpose.estateLabel}`
-    : `claim:${purpose.estateLabel}:${purpose.heirLabel}`;
+    : `claim:${purpose.estateLabel}`;
 }
 
 /** A fresh nonce per attempt — showing it makes the replay protection concrete. */
