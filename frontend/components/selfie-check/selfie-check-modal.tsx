@@ -8,10 +8,29 @@ import { IconCircle } from "@/components/ui/icon-circle";
 import {
   actionString,
   randomNonce,
+  shortNonce,
   SELFIE_CHECK_STAGES,
   STAGE_MS,
   type SelfieCheckPurpose,
 } from "@/lib/selfie-check";
+import { IDKitRequestWidget, selfieCheckLegacy } from "@worldcoin/idkit";
+
+<IDKitRequestWidget
+  open={open}
+  onOpenChange={setOpen}
+  app_id={appId}
+  action={action}
+  rp_context={rpContext}
+  preset={selfieCheckLegacy({ signal })}
+  allow_legacy_proofs={true}
+  environment={environment}
+  onSuccess={(result) => {
+    /* → §7 */
+  }}
+  onError={(code, debugReport) => {
+    /* → §8 */
+  }}
+/>;
 
 /**
  * The Selfie Check modal.
@@ -84,7 +103,12 @@ function SelfieCheckDialog({
       aria-label="World ID Selfie Check"
     >
       <div className="relative w-full max-w-md">
-        <Star className="-left-4 -top-4 z-20" size={34} fill="#FFE566" rotate={-12} />
+        <Star
+          className="-left-4 -top-4 z-20"
+          size={34}
+          fill="#FFE566"
+          rotate={-12}
+        />
 
         <div className="card max-h-[88vh] overflow-y-auto p-6">
           <div className="flex items-start gap-3">
@@ -92,7 +116,9 @@ function SelfieCheckDialog({
               {done ? <CheckIcon size={22} /> : <SelfieIcon size={22} />}
             </span>
             <div>
-              <h2 className="text-xl">{done ? "selfie check passed" : "selfie check"}</h2>
+              <h2 className="text-xl">
+                {done ? "selfie check passed" : "selfie check"}
+              </h2>
               <p className="mt-1 text-sm text-muted">
                 {done
                   ? "the attestation was accepted on Sepolia."
@@ -103,7 +129,7 @@ function SelfieCheckDialog({
 
           <div className="mt-5 rounded-[8px] border-2 border-ink bg-cream px-4 py-3">
             <FieldRow label="action" value={action} />
-            <FieldRow label="nonce" value={`0x${nonce}`} />
+            <FieldRow label="nonce" value={shortNonce(nonce)} />
             <FieldRow label="expiry" value="+10 minutes" />
           </div>
 
@@ -113,19 +139,25 @@ function SelfieCheckDialog({
             <div className="mt-5 flex items-start gap-2.5 rounded-[8px] border-2 border-ink bg-teal px-4 py-3">
               <ShieldIcon size={18} />
               <p className="text-xs font-medium leading-relaxed">
-                this proof is bound to <span className="mono">{action}</span> and cannot be
-                replayed against another estate or a different role.
+                this proof is bound to <span className="mono">{action}</span>{" "}
+                and cannot be replayed against another estate or a different
+                role.
               </p>
             </div>
           ) : null}
 
-          <button type="button" className="btn mt-6 w-full" onClick={onClose} disabled={!done}>
+          <button
+            type="button"
+            className="btn mt-6 w-full"
+            onClick={onClose}
+            disabled={!done}
+          >
             {done ? confirmLabel : "verifying…"}
           </button>
 
           <p className="mt-3 text-center text-[0.7rem] text-muted">
-            demo build — the verification sequence is simulated while the attestor backend is
-            wired up.
+            demo build — the verification sequence is simulated while the
+            attestor backend is wired up.
           </p>
         </div>
       </div>
@@ -138,7 +170,8 @@ function StageList({ current }: { current: number }) {
   return (
     <ol className="mt-5 space-y-2.5">
       {SELFIE_CHECK_STAGES.map((entry, index) => {
-        const state = current > index ? "done" : current === index ? "active" : "pending";
+        const state =
+          current > index ? "done" : current === index ? "active" : "pending";
         return (
           <li key={entry.label} className="flex items-center gap-3">
             <IconCircle
@@ -154,7 +187,9 @@ function StageList({ current }: { current: number }) {
               {state === "done" ? (
                 <CheckIcon size={14} />
               ) : (
-                <span className="mono text-[0.65rem] font-bold">{index + 1}</span>
+                <span className="mono text-[0.65rem] font-bold">
+                  {index + 1}
+                </span>
               )}
             </IconCircle>
             <div className="min-w-0">
@@ -165,7 +200,9 @@ function StageList({ current }: { current: number }) {
               >
                 {entry.label}
               </p>
-              <p className="truncate text-[0.72rem] text-muted">{entry.detail}</p>
+              <p className="truncate text-[0.72rem] text-muted">
+                {entry.detail}
+              </p>
             </div>
           </li>
         );
