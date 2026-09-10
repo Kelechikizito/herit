@@ -11,6 +11,7 @@ import { ClockIcon, FastForwardIcon, SelfieIcon } from "@/components/ui/icons";
 import { contracts } from "@/lib/contracts/contracts";
 import {
   type Estate,
+  type EstateStatus,
   STATUS_COPY,
   countdownTarget,
   formatCountdown,
@@ -22,6 +23,7 @@ import {
   windowEndsAt,
   windowProgress,
 } from "@/lib/estate";
+import { type Change, useChange } from "@/lib/estate/use-change";
 import { useNow } from "@/lib/estate/use-now";
 import { useAttestedAction } from "@/lib/wagmi/use-attested-action";
 import { pendingLabel, useTransaction } from "@/lib/wagmi/use-transaction";
@@ -44,6 +46,8 @@ export function ProofOfLifeCard({
   const [checkingIn, setCheckingIn] = useState(false);
   const checkIn = useAttestedAction("checkin");
   const poke = useTransaction();
+  // A transition seen while the card is open: grace cancelled by a check-in, a window that closed.
+  const statusChange = useChange(estate.status);
 
   // `estate.status` is the pending status `estateOf` returned; the ring only draws it.
   const tick = useNow(now);
@@ -56,14 +60,21 @@ export function ProofOfLifeCard({
   const remaining = secondsUntil(countdownTarget(estate.status, estate.clock), tick);
   const total = phaseSeconds(estate.status, estate.clock);
   const progress = unlocked ? 1 : started ? windowProgress(total, remaining) : 0;
+  // The local clock is past the deadline but the last read still reports the old status. The ring
+  // does not decide it has passed — `useEstate` reads fast until `estateOf` says so.
+  const overdue = started && !unlocked && remaining === 0;
 
   const counting = unlocked
     ? "heirs unlocked"
     : !started
       ? "clock not started"
       : estate.status === "grace"
-        ? "heirs unlock in"
-        : "next check-in in";
+        ? overdue
+          ? "grace lapsed"
+          : "heirs unlock in"
+        : overdue
+          ? "window closed"
+          : "next check-in in";
   const body = !configured
     ? "the timers are not configured yet"
     : !started
@@ -93,10 +104,16 @@ export function ProofOfLifeCard({
             {started && !unlocked ? formatCountdown(remaining) : "—"}
           </p>
           <p className="mt-1 text-[0.68rem] text-muted">
-            {configured ? `of ${formatDuration(total || estate.clock.checkInInterval)}` : "no timers"}
+            {!configured
+              ? "no timers"
+              : overdue
+                ? "confirming on sepolia…"
+                : `of ${formatDuration(total || estate.clock.checkInInterval)}`}
           </p>
         </CountdownRing>
       </div>
+
+      {statusChange ? <StatusChangeNote key={statusChange.seq} change={statusChange} /> : null}
 
       <button
         type="button"
@@ -153,5 +170,28 @@ export function ProofOfLifeCard({
         confirmLabel="done"
       />
     </section>
+  );
+}
+
+/**
+ * Keyed by where the estate went. `active` is only ever reached from grace — unlock is final — so
+ * arriving there always means a check-in cancelled it.
+ */
+const CHANGE_COPY: Record<EstateStatus, { text: string; tone: string }> = {
+  active: { text: "grace cancelled — your selfie check sealed the estate again", tone: "bg-teal" },
+  grace: { text: "the check-in window closed — the estate is in grace", tone: "bg-yellow" },
+  unlocked: { text: "grace lapsed — the estate has unlocked to its heirs", tone: "bg-coral text-white" },
+};
+
+/** The last status change seen on this card, in words. Stays until the next one. */
+function StatusChangeNote({ change }: { change: Change<EstateStatus> }) {
+  const copy = CHANGE_COPY[change.to];
+  return (
+    <p
+      role="status"
+      className={`pop-in mb-4 rounded-[8px] border-2 border-ink px-4 py-2.5 text-center text-xs font-bold ${copy.tone}`}
+    >
+      {copy.text}
+    </p>
   );
 }

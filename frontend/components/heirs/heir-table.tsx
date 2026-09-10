@@ -1,5 +1,5 @@
 import { HeirRow } from "@/components/estate/heir-row";
-import { RoleChip } from "@/components/estate/role-chip";
+import { ClaimChip, RoleChip } from "@/components/estate/role-chip";
 import { RecordField } from "@/components/ui/data-row";
 import { PanelCard, PanelEmpty, PanelList } from "@/components/ui/panel-card";
 import { type Heir, shortAddress } from "@/lib/estate";
@@ -24,6 +24,7 @@ export function HeirTable({ estateLabel, heirs }: { estateLabel: string; heirs: 
             <li key={heir.label} className="px-6 py-5">
               <HeirRow estateLabel={estateLabel} heir={heir} index={index}>
                 <RoleChip heir={heir} />
+                <ClaimChip heir={heir} />
               </HeirRow>
 
               <HeirRecords heir={heir} />

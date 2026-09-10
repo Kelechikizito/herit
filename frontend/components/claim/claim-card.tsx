@@ -23,6 +23,7 @@ import {
   shortAddress,
   unlockAt,
 } from "@/lib/estate";
+import { useChange } from "@/lib/estate/use-change";
 import { useAttestedAction } from "@/lib/wagmi/use-attested-action";
 
 export function ClaimCard({
@@ -205,7 +206,10 @@ function TokenLine({
   );
 }
 
-/** One of the conditions `ClaimManager` checks before releasing anything. */
+/**
+ * One of the conditions `ClaimManager` checks before releasing anything. Pops when it becomes met
+ * while the page is open — the estate unlocking, or the claim role landing on the subname.
+ */
 function Requirement({
   met,
   label,
@@ -215,9 +219,16 @@ function Requirement({
   label: string;
   detail: string;
 }) {
+  const change = useChange(met);
+
   return (
     <li className="flex items-start gap-3">
-      <IconCircle size="xs" accent={met ? "bg-teal" : "bg-surface"}>
+      <IconCircle
+        key={change?.seq}
+        size="xs"
+        accent={met ? "bg-teal" : "bg-surface"}
+        className={change?.to ? "flash-change" : ""}
+      >
         {met ? <CheckIcon size={13} /> : <AlertIcon size={12} />}
       </IconCircle>
       <div>

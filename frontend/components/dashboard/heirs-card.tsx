@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { HeirRow } from "@/components/estate/heir-row";
-import { RoleChip } from "@/components/estate/role-chip";
+import { ClaimChip, RoleChip } from "@/components/estate/role-chip";
 import { PlusIcon } from "@/components/ui/icons";
 import { PanelCard, PanelEmpty, PanelList } from "@/components/ui/panel-card";
 import { type Heir, estateHref } from "@/lib/estate";
@@ -25,6 +25,7 @@ export function HeirsCard({ estateLabel, heirs }: { estateLabel: string; heirs: 
             <li key={heir.label} className="px-6 py-4">
               <HeirRow estateLabel={estateLabel} heir={heir} index={index}>
                 <RoleChip heir={heir} />
+                <ClaimChip heir={heir} />
               </HeirRow>
             </li>
           ))}

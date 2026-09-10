@@ -68,6 +68,7 @@ function Claim({
 
   const estateName = fullName({ label: slot.estateLabel });
   const relationship = heir.status === "ready" ? heir.data.relationship : undefined;
+  const granted = heir.status === "ready" && heir.data.canClaim;
 
   return (
     <>
@@ -77,7 +78,11 @@ function Claim({
         mono
         starFill="#F9A8B8"
         starRotate={12}
-        description={`you are named as ${relationship ?? "an heir"} under ${estateName}. your claim role stays withheld until the grantor's grace period lapses.`}
+        description={`you are named as ${relationship ?? "an heir"} under ${estateName}. ${
+          granted
+            ? "your claim role was granted when the estate unlocked."
+            : "your claim role stays withheld until the grantor's grace period lapses."
+        }`}
       />
 
       <EntrySwitcher label="your claims" links={entries.map(heirSlotLink)} current={heirSlotLink(slot)} />

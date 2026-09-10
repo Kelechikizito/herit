@@ -1,5 +1,5 @@
 import { HeirAvatar } from "@/components/estate/heir-avatar";
-import { RoleChip, ShareChip } from "@/components/estate/role-chip";
+import { ClaimChip, RoleChip, ShareChip } from "@/components/estate/role-chip";
 import { Blob } from "@/components/ui/deco";
 import { PanelCard, PanelEmpty, PanelList } from "@/components/ui/panel-card";
 import { type Heir, bpsToPercent, coHeirs, fullName } from "@/lib/estate";
@@ -28,7 +28,7 @@ export function CoHeirsCard({
       ) : (
         <PanelList>
           {others.map(({ heir, index }) => (
-            <li key={heir.label} className="flex items-center gap-3 px-6 py-4">
+            <li key={heir.label} className="flex flex-wrap items-center gap-3 px-6 py-4">
               <HeirAvatar index={index} size="lg" />
               <div className="min-w-0 flex-1">
                 <p className="mono truncate text-sm font-bold">{fullName(estate, heir.label)}</p>
@@ -36,6 +36,7 @@ export function CoHeirsCard({
               </div>
               <ShareChip>{bpsToPercent(heir.shareBps)}</ShareChip>
               <RoleChip heir={heir} />
+              <ClaimChip heir={heir} />
             </li>
           ))}
         </PanelList>
