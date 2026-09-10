@@ -1,24 +1,31 @@
-import { PanelCard, PanelList } from "@/components/ui/panel-card";
-import { type Estate, LOG_COLOR, formatStamp } from "@/lib/estate";
+import { PanelCard, PanelEmpty, PanelList } from "@/components/ui/panel-card";
+import { LOG_COLOR, type LogEntry, formatStamp } from "@/lib/estate";
 
 /** The event feed. Every state change herit emits, newest first. */
-export function ActivityCard({ estate }: { estate: Estate }) {
+export function ActivityCard({ entries }: { entries: readonly LogEntry[] }) {
   return (
     <PanelCard title="activity" subtitle="every state change herit emits as an event">
-      <PanelList>
-        {estate.log.map((entry) => (
-          <li key={entry.id} className="flex gap-3 px-6 py-3.5">
-            <span
-              className={`mt-1 h-3 w-3 flex-shrink-0 rounded-full border-2 border-ink ${LOG_COLOR[entry.kind]}`}
-              aria-hidden="true"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm leading-relaxed">{entry.text}</p>
-              <p className="mono mt-0.5 text-[0.7rem] text-muted">{formatStamp(entry.stamp)}</p>
-            </div>
-          </li>
-        ))}
-      </PanelList>
+      {entries.length === 0 ? (
+        <PanelEmpty>
+          no events to show yet. check-ins, deposits and claims appear here once the event feed is
+          connected.
+        </PanelEmpty>
+      ) : (
+        <PanelList>
+          {entries.map((entry) => (
+            <li key={entry.id} className="flex gap-3 px-6 py-3.5">
+              <span
+                className={`mt-1 h-3 w-3 flex-shrink-0 rounded-full border-2 border-ink ${LOG_COLOR[entry.kind]}`}
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm leading-relaxed">{entry.text}</p>
+                <p className="mono mt-0.5 text-[0.7rem] text-muted">{formatStamp(entry.stamp)}</p>
+              </div>
+            </li>
+          ))}
+        </PanelList>
+      )}
     </PanelCard>
   );
 }

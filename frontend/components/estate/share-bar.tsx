@@ -1,10 +1,13 @@
-import { BPS_DENOMINATOR, type Estate, heirColor } from "@/lib/estate";
+import { BPS_DENOMINATOR, heirColor } from "@/lib/estate";
 
 export type ShareSegment = { label: string; bps: number; color: string };
 
-/** Turns an estate's heirs into the bar's segments, keeping each heir's palette colour. */
-export function heirSegments(estate: Estate): ShareSegment[] {
-  return estate.heirs.map((heir, index) => ({
+/**
+ * Turns heirs into the bar's segments, keeping each heir's palette colour. Takes anything with a
+ * label and a share, so registered heirs and drafted ones draw the same way.
+ */
+export function heirSegments(heirs: readonly { label: string; shareBps: number }[]): ShareSegment[] {
+  return heirs.map((heir, index) => ({
     label: heir.label,
     bps: heir.shareBps,
     color: heirColor(index),

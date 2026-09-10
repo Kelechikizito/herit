@@ -3,17 +3,12 @@ import { CardHeading } from "@/components/ui/card-heading";
 import { TreeIcon } from "@/components/ui/icons";
 import { AlertNote } from "@/components/ui/note";
 import { StatBox } from "@/components/ui/stat-box";
-import {
-  type Estate,
-  allocatedBps,
-  bpsToPercent,
-  unallocatedBps,
-} from "@/lib/estate";
+import { type Heir, allocatedBps, bpsToPercent, unallocatedBps } from "@/lib/estate";
 
 /** How the estate is divided, and how much of it is still unspoken for. */
-export function AllocationCard({ estate }: { estate: Estate }) {
-  const allocated = allocatedBps(estate);
-  const unallocated = unallocatedBps(estate);
+export function AllocationCard({ heirs }: { heirs: readonly Heir[] }) {
+  const allocated = allocatedBps(heirs);
+  const unallocated = unallocatedBps(heirs);
 
   return (
     <section className="card p-6">
@@ -25,7 +20,7 @@ export function AllocationCard({ estate }: { estate: Estate }) {
       />
 
       <div className="mt-5">
-        <ShareBar segments={heirSegments(estate)} />
+        <ShareBar segments={heirSegments(heirs)} />
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-3">
@@ -42,7 +37,7 @@ export function AllocationCard({ estate }: { estate: Estate }) {
         />
         <StatBox
           label="heirs"
-          value={String(estate.heirs.length)}
+          value={String(heirs.length)}
           sub="subnames minted"
         />
       </div>

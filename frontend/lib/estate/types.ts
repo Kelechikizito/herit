@@ -1,5 +1,8 @@
+import type { Address } from "viem";
+
 /**
- * The shapes the screens read.
+ * The shapes the screens read, one per thing the chain can be asked about. An estate, its vault
+ * and its heirs load separately, so one slow read never holds up the cards that do not need it.
  */
 
 /** Shares are stored in basis points and capped at 10000 across an estate. */
@@ -7,13 +10,74 @@ export const BPS_DENOMINATOR = 10_000;
 
 export type EstateStatus = "active" | "grace" | "unlocked";
 
+/**
+ * The timers `HeritRegistry.estateOf` returns, in unix seconds. All zero until the estate is
+ * configured; `lastCheckIn` stays zero until the first Selfie Check lands.
+ */
+export type EstateClock = {
+  lastCheckIn: number;
+  checkInInterval: number;
+  graceDuration: number;
+};
+
+export type Estate = {
+  estateId: bigint;
+  label: string;
+  /** Registry A's owner of the name. The zero address once the name has lapsed. */
+  grantor: Address;
+  /** The estate's own ENSv2 registry, where the heir subnames live. */
+  estateRegistry: Address;
+  /** The pending status: what a poke would store right now, not the cached field. */
+  status: EstateStatus;
+  clock: EstateClock;
+};
+
+/** One asset the vault holds for an estate. */
+export type VaultToken = {
+  /** `NATIVE_TOKEN` for ETH. */
+  token: Address;
+  symbol: string;
+  decimals: number;
+  /** What the estate holds now. */
+  balance: bigint;
+  /** What it held at unlock, which every share is measured against. Zero before then. */
+  snapshot: bigint;
+};
+
+export type Vault = {
+  /** In the order first deposited. A token withdrawn to zero stays listed. */
+  tokens: VaultToken[];
+  /** Whether the unlock transition has run and frozen the balances. */
+  snapshotTaken: boolean;
+};
+
+/** One heir's position in one vault token. */
+export type TokenShare = {
+  token: Address;
+  /** `shareOf`: the per-token override where one was set, the heir's default otherwise. */
+  shareBps: number;
+  /** `ClaimManager.hasClaimed`. */
+  claimed: boolean;
+};
+
 export type Heir = {
   label: string;
-  address: string;
-  relationship: string;
-  /** Written to `herit.share`. Capped at 10000 across an estate. */
+  labelhash: bigint;
+  address: Address;
+  /** The `herit.relationship` text record. Undefined while resolving, or if it cannot be read. */
+  relationship: string | undefined;
+  /** `defaultShareOf`, the estate-wide share the `herit.share` record mirrors. */
   shareBps: number;
-  claimed: boolean;
+  /** Whether ENS grants this heir the claim role. False until someone pokes a lapsed estate. */
+  canClaim: boolean;
+  /** One entry per vault token, in vault order. */
+  holdings: TokenShare[];
+};
+
+/** What one heir can take of one token, as `ClaimManager.claimableAll` reports it. */
+export type Claimable = {
+  token: Address;
+  amount: bigint;
 };
 
 export type LogKind = "opened" | "checkin" | "heir" | "unlock" | "claim" | "deposit";
@@ -23,24 +87,6 @@ export type LogEntry = {
   stamp: number;
   kind: LogKind;
   text: string;
-};
-
-export type EstateClock = {
-  lastCheckIn: number;
-  checkInInterval: number;
-  graceDuration: number;
-  storedStatus: EstateStatus;
-};
-
-export type Estate = {
-  label: string;
-  grantor: string;
-  estateRegistry: string;
-  status: EstateStatus;
-  clock: EstateClock;
-  vaultEth: number;
-  heirs: Heir[];
-  log: LogEntry[];
 };
 
 /** An estate the connected wallet opened and still owns the name of. */

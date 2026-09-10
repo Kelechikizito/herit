@@ -1,16 +1,29 @@
 import { LockIcon, UnlockIcon } from "@/components/ui/icons";
-import type { EstateStatus } from "@/lib/estate";
+import { type Heir, claimProgress } from "@/lib/estate";
 
 /**
  * The state of `ROLE_HEIR_CLAIM` on one heir subname — the bit that is the inheritance. Withheld
  * at registration, granted on unlock, spent on claim.
+ *
+ * Read from ENS through `canClaim`, not inferred from the clock. An estate whose grace has lapsed
+ * but that nobody has poked still shows dormant here, and flips the moment the unlock runs.
  */
-export function RoleChip({ status, claimed }: { status: EstateStatus; claimed: boolean }) {
-  if (claimed) {
+export function RoleChip({ heir }: { heir: Pick<Heir, "canClaim" | "holdings"> }) {
+  const { paid, of } = claimProgress(heir.holdings);
+
+  if (of > 0 && paid === of) {
     return <span className="tag bg-teal px-2.5 py-0.5 text-[0.7rem]">claimed</span>;
   }
 
-  if (status === "unlocked") {
+  if (paid > 0) {
+    return (
+      <span className="tag bg-teal px-2.5 py-0.5 text-[0.7rem]">
+        {paid}/{of} claimed
+      </span>
+    );
+  }
+
+  if (heir.canClaim) {
     return (
       <span className="tag bg-coral px-2.5 py-0.5 text-[0.7rem] text-white">
         <UnlockIcon size={12} />

@@ -2,11 +2,11 @@ import { CardHeading } from "@/components/ui/card-heading";
 import { Sparkle } from "@/components/ui/deco";
 import { FormField } from "@/components/ui/form-field";
 import { PlusIcon } from "@/components/ui/icons";
-import { BPS_DENOMINATOR, type Estate, unallocatedBps } from "@/lib/estate";
+import { BPS_DENOMINATOR, type Heir, unallocatedBps } from "@/lib/estate";
 
 /** The form that mints one more subname under the estate, with its claim role withheld. */
-export function AddHeirForm({ estate }: { estate: Estate }) {
-  const unallocated = unallocatedBps(estate);
+export function AddHeirForm({ estateLabel, heirs }: { estateLabel: string; heirs: readonly Heir[] }) {
+  const unallocated = unallocatedBps(heirs);
 
   return (
     <section className="card relative overflow-hidden p-6 lg:sticky lg:top-24">
@@ -23,7 +23,7 @@ export function AddHeirForm({ estate }: { estate: Estate }) {
         <FormField
           id="heir-label"
           label="subname label"
-          hint={`daughter.${estate.label}.herit.eth`}
+          hint={`daughter.${estateLabel}.herit.eth`}
           hintMono
         >
           <input

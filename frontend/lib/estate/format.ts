@@ -1,28 +1,70 @@
+import { type Address, formatUnits, isAddressEqual } from "viem";
 import {
   BPS_DENOMINATOR,
-  type Estate,
   type EstateClock,
   type EstateStatus,
+  type Heir,
   type IndexedHeir,
+  type TokenShare,
+  type Vault,
+  type VaultToken,
 } from "./types";
 
 /** Formatting and derivation over an estate. Pure, no rendering, no fixtures. */
 
-export function allocatedBps(estate: Estate): number {
-  return estate.heirs.reduce((total, heir) => total + heir.shareBps, 0);
+/** The client-side sum of every heir's `defaultShareOf`. There is no getter, and none is needed. */
+export function allocatedBps(heirs: readonly Heir[]): number {
+  return heirs.reduce((total, heir) => total + heir.shareBps, 0);
 }
 
-export function unallocatedBps(estate: Estate): number {
-  return Math.max(0, BPS_DENOMINATOR - allocatedBps(estate));
+export function unallocatedBps(heirs: readonly Heir[]): number {
+  return Math.max(0, BPS_DENOMINATOR - allocatedBps(heirs));
 }
 
 export function bpsToPercent(bps: number): string {
   return `${(bps / 100).toFixed(bps % 100 === 0 ? 0 : 2)}%`;
 }
 
-/** An heir's cut of the vault, in ETH. */
-export function shareOfVault(vaultEth: number, shareBps: number): number {
-  return (vaultEth * shareBps) / BPS_DENOMINATOR;
+/** `amount × shareBps / 10000`, rounded down the way `HeritVault.payOut` rounds. */
+export function shareOfAmount(amount: bigint, shareBps: number): bigint {
+  return (amount * BigInt(shareBps)) / BigInt(BPS_DENOMINATOR);
+}
+
+/**
+ * What a share is measured against: the snapshot once the unlock transition has run, the live
+ * balance before it. Before the snapshot the result is an estimate — a deposit or withdrawal can
+ * still change it.
+ */
+export function shareBase(vault: Vault, token: VaultToken): bigint {
+  return vault.snapshotTaken ? token.snapshot : token.balance;
+}
+
+/** An heir's position in one token, or undefined when the heir row predates that token's listing. */
+export function holdingOf(heir: Heir, token: Address): TokenShare | undefined {
+  return heir.holdings.find((holding) => isAddressEqual(holding.token, token));
+}
+
+/** How far through their claim an heir is, counting only the tokens they have a share of. */
+export function claimProgress(holdings: readonly TokenShare[]): { paid: number; of: number } {
+  const owed = holdings.filter((holding) => holding.shareBps > 0);
+  return { paid: owed.filter((holding) => holding.claimed).length, of: owed.length };
+}
+
+/** Largest number of fraction digits an amount shows. Enough for a demo, short enough for a chip. */
+const FRACTION_DIGITS = 4;
+
+/** A token amount in whole units, truncated rather than rounded so it never overstates. */
+export function formatAmount(amount: bigint, decimals: number): string {
+  const [whole, fraction = ""] = formatUnits(amount, decimals).split(".");
+  const kept = fraction.slice(0, FRACTION_DIGITS).replace(/0+$/, "");
+  if (kept === "" && whole === "0" && amount > BigInt(0)) {
+    return `<0.${"0".repeat(FRACTION_DIGITS - 1)}1`;
+  }
+  return kept === "" ? whole : `${whole}.${kept}`;
+}
+
+export function formatTokenAmount(amount: bigint, token: Pick<VaultToken, "decimals" | "symbol">): string {
+  return `${formatAmount(amount, token.decimals)} ${token.symbol}`;
 }
 
 export function shortAddress(address: string): string {
@@ -30,20 +72,21 @@ export function shortAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-export function fullName(estate: Estate, heirLabel?: string): string {
+/** Takes anything with a label, so an estate, a discovered entry or a bare `{ label }` all work. */
+export function fullName(estate: { label: string }, heirLabel?: string): string {
   return heirLabel
     ? `${heirLabel}.${estate.label}.herit.eth`
     : `${estate.label}.herit.eth`;
 }
 
 /** Heirs paired with their estate position, so a filtered list keeps its colours. */
-export function indexedHeirs(estate: Estate): IndexedHeir[] {
-  return estate.heirs.map((heir, index) => ({ heir, index }));
+export function indexedHeirs(heirs: readonly Heir[]): IndexedHeir[] {
+  return heirs.map((heir, index) => ({ heir, index }));
 }
 
 /** Every heir but one — the co-heirs of the signed-in heir on the claim screen. */
-export function coHeirs(estate: Estate, label: string): IndexedHeir[] {
-  return indexedHeirs(estate).filter((entry) => entry.heir.label !== label);
+export function coHeirs(heirs: readonly Heir[], label: string): IndexedHeir[] {
+  return indexedHeirs(heirs).filter((entry) => entry.heir.label !== label);
 }
 
 /*//////////////////////////////////////////////////////////////

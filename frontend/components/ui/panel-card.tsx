@@ -42,3 +42,8 @@ export function PanelCard({
 export function PanelList({ children }: { children: React.ReactNode }) {
   return <ul className="divide-y-2 divide-ink">{children}</ul>;
 }
+
+/** What a `PanelCard` says in place of an empty list. */
+export function PanelEmpty({ children }: { children: React.ReactNode }) {
+  return <p className="px-6 py-5 text-sm leading-relaxed text-muted">{children}</p>;
+}

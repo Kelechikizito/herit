@@ -5,6 +5,7 @@ import { useReadContract, useReadContracts } from "wagmi";
 import { CHAIN_ID } from "@/lib/contracts/addresses";
 import { contracts } from "@/lib/contracts/contracts";
 import { useWallet } from "@/lib/wagmi/use-wallet";
+import { LOADING, type Load, failedLoad, ready } from "./load";
 import { type Selection, selectEstate, selectHeirSlot } from "./selection";
 import type { HeirSlot, OwnedEstate } from "./types";
 
@@ -15,10 +16,6 @@ import type { HeirSlot, OwnedEstate } from "./types";
  * it holds here. Refusing the wrong network is the write path's job.
  */
 
-type DiscoveryError = { status: "error"; error: Error; retry: () => void };
-
-export type Discovery<T> = { status: "loading" } | DiscoveryError | { status: "ready"; entries: T[] };
-
 /** The wallet, discovery and selection folded into the one value a screen branches on. */
 export type Resolved<T> =
   | { kind: "reconnecting" }
@@ -28,7 +25,6 @@ export type Resolved<T> =
   | Exclude<Selection<T>, { kind: "selected" }>
   | (Extract<Selection<T>, { kind: "selected" }> & { address: Address });
 
-const LOADING = { status: "loading" } as const;
 const NO_IDS: readonly bigint[] = [];
 const NO_SLOTS: readonly { estateId: bigint; heirLabelhash: bigint }[] = [];
 
@@ -39,7 +35,7 @@ const NO_SLOTS: readonly { estateId: bigint; heirLabelhash: bigint }[] = [];
  * An id is kept only while registry A's `getOwner` still names `address`, which also drops an
  * expired name, since `getOwner` reads zero for one.
  */
-export function useMyEstates(address: Address | undefined): Discovery<OwnedEstate> {
+export function useMyEstates(address: Address | undefined): Load<OwnedEstate[]> {
   const index = useReadContract({
     ...contracts.accessControlGate,
     functionName: "estatesOfGrantor",
@@ -65,10 +61,10 @@ export function useMyEstates(address: Address | undefined): Discovery<OwnedEstat
   });
   const labels = useEstateLabels(ids);
 
-  const failed = firstError(index, owners, labels);
+  const failed = failedLoad(index, owners, labels);
   if (failed) return failed;
   if (address === undefined || index.data === undefined) return LOADING;
-  if (ids.length === 0) return { status: "ready", entries: [] };
+  if (ids.length === 0) return ready([]);
 
   const ownerOf = owners.data;
   const labelOf = labels.data;
@@ -80,7 +76,7 @@ export function useMyEstates(address: Address | undefined): Discovery<OwnedEstat
     const label = labelOf[i];
     return owner !== undefined && isAddressEqual(owner, grantor) && label ? [{ estateId, label }] : [];
   });
-  return { status: "ready", entries };
+  return ready(entries);
 }
 
 /**
@@ -89,7 +85,7 @@ export function useMyEstates(address: Address | undefined): Discovery<OwnedEstat
  * Unlike the grantor index this one needs no confirming: an heir's address is fixed when it is
  * recorded, and nothing in `HeritRegistry` reassigns it.
  */
-export function useMyHeirSlots(address: Address | undefined): Discovery<HeirSlot> {
+export function useMyHeirSlots(address: Address | undefined): Load<HeirSlot[]> {
   const index = useReadContract({
     ...contracts.heritRegistry,
     functionName: "heirSlotsOf",
@@ -114,10 +110,10 @@ export function useMyHeirSlots(address: Address | undefined): Discovery<HeirSlot
   });
   const estateLabels = useEstateLabels(slots.map((slot) => slot.estateId));
 
-  const failed = firstError(index, heirLabels, estateLabels);
+  const failed = failedLoad(index, heirLabels, estateLabels);
   if (failed) return failed;
   if (index.data === undefined) return LOADING;
-  if (slots.length === 0) return { status: "ready", entries: [] };
+  if (slots.length === 0) return ready([]);
 
   const heirLabelOf = heirLabels.data;
   const estateLabelOf = estateLabels.data;
@@ -130,7 +126,7 @@ export function useMyHeirSlots(address: Address | undefined): Discovery<HeirSlot
       ? [{ estateId: slot.estateId, heirLabelhash: slot.heirLabelhash, heirLabel, estateLabel }]
       : [];
   });
-  return { status: "ready", entries };
+  return ready(entries);
 }
 
 /** The estate a grantor screen shows: `?estate=<label>` when given, otherwise the first found. */
@@ -149,7 +145,7 @@ export function useSelectedHeirSlot(params: { estate?: string; heir?: string }):
 
 function resolve<T>(
   wallet: { address: Address | undefined; isConnected: boolean; isReconnecting: boolean },
-  discovery: Discovery<T>,
+  discovery: Load<T[]>,
   select: (entries: T[]) => Selection<T>,
 ): Resolved<T> {
   if (wallet.isReconnecting) return { kind: "reconnecting" };
@@ -159,7 +155,7 @@ function resolve<T>(
     return { kind: "error", error: discovery.error, retry: discovery.retry };
   }
 
-  const selection = select(discovery.entries);
+  const selection = select(discovery.data);
   return selection.kind === "selected" ? { ...selection, address: wallet.address } : selection;
 }
 
@@ -178,21 +174,4 @@ function useEstateLabels(estateIds: readonly bigint[]) {
     ),
     query: { enabled: estateIds.length > 0 },
   });
-}
-
-/** The first failed read, with a retry that re-runs only the reads that failed. */
-function firstError(
-  ...queries: { error: Error | null; refetch: () => Promise<unknown> }[]
-): DiscoveryError | undefined {
-  const failed = queries.filter((query) => query.error !== null);
-  const first = failed[0];
-  if (first === undefined || first.error === null) return undefined;
-
-  return {
-    status: "error",
-    error: first.error,
-    retry: () => {
-      for (const query of failed) void query.refetch();
-    },
-  };
 }
