@@ -23,6 +23,7 @@ import {
   shortAddress,
   unlockAt,
 } from "@/lib/estate";
+import { useAttestedAction } from "@/lib/wagmi/use-attested-action";
 
 export function ClaimCard({
   estate,
@@ -39,12 +40,26 @@ export function ClaimCard({
   address: Address;
 }) {
   const [claiming, setClaiming] = useState(false);
+  const claim = useAttestedAction("claim");
 
+  // The three things `ClaimManager` checks, from `statusOf`, `heirAddressOf` and `hasClaimed`.
+  // Never `canClaim`: it reads false for a lapsed estate nobody has poked, and the claim pokes.
   const unlocked = estate.status === "unlocked";
   const unlocksAt = unlockAt(estate.clock);
   const controls = isAddressEqual(heir.address, address);
   const { paid, of } = claimProgress(heir.holdings);
   const allPaid = of > 0 && paid === of;
+  const unclaimed = of > 0 && !allPaid;
+
+  const refusal = !unlocked
+    ? "claims open once the estate unlocks"
+    : !controls
+      ? "connect the wallet recorded for this heir"
+      : !unclaimed
+        ? allPaid
+          ? "your share has been paid out"
+          : "the vault holds nothing for you yet"
+        : claim.blocked;
 
   return (
     <section className="card relative overflow-hidden p-6">
@@ -78,11 +93,16 @@ export function ClaimCard({
       <button
         type="button"
         className="btn btn-pill w-full"
-        onClick={() => setClaiming(true)}
+        onClick={() => {
+          claim.reset();
+          setClaiming(true);
+        }}
+        disabled={refusal !== undefined || claim.busy}
       >
         <SelfieIcon size={18} />
         selfie check and claim
       </button>
+      {refusal ? <p className="hint text-center">{refusal}</p> : null}
 
       <ul className="mt-6 space-y-3 border-t-2 border-ink pt-5">
         <Requirement
@@ -121,9 +141,15 @@ export function ClaimCard({
           }
         />
         <Requirement
-          met={false}
-          label="your selfie check"
-          detail="one uniqueness proof, scoped to this claim"
+          met={heir.canClaim}
+          label="claim role on your subname"
+          detail={
+            heir.canClaim
+              ? "ROLE_HEIR_CLAIM granted — the unlock has run"
+              : unlocked
+                ? "not granted yet — your claim runs the unlock first, then grants it"
+                : "withheld until the estate unlocks"
+          }
         />
       </ul>
 
@@ -131,7 +157,10 @@ export function ClaimCard({
         open={claiming}
         purpose={{ kind: "claim", estateLabel: estate.label, heirLabel: heir.label }}
         onClose={() => setClaiming(false)}
-        confirmLabel="release my share"
+        onVerified={claim.submit}
+        submission={claim.submission}
+        onResubmit={claim.submit}
+        confirmLabel="done"
       />
     </section>
   );

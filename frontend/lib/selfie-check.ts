@@ -30,6 +30,12 @@ export const SELFIE_CHECK_STAGES: readonly { label: string; detail: string }[] =
     { label: "ready to submit", detail: "LivenessAttestor.checkIn / claim" },
   ];
 
+/** The sixth stage, shown when the caller sends the transaction while the modal stays open. */
+export const SUBMIT_STAGE: { label: string; detail: string } = {
+  label: "submitting to sepolia",
+  detail: "wallet signature, then confirmation",
+};
+
 /** The three environments a World ID app can be pointed at. */
 export const WLD_ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
 export type WldEnvironment = (typeof WLD_ENVIRONMENTS)[number];

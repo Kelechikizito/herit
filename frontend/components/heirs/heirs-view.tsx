@@ -7,8 +7,9 @@ import { AddHeirForm } from "@/components/heirs/add-heir-form";
 import { AllocationCard } from "@/components/heirs/allocation-card";
 import { HeirTable } from "@/components/heirs/heir-table";
 import { PageHeader } from "@/components/layout/page-header";
-import { type OwnedEstate, estateLink, fullName } from "@/lib/estate";
+import { type OwnedEstate, all, estateLink, fullName } from "@/lib/estate";
 import { useSelectedEstate } from "@/lib/estate/use-discovery";
+import { useEstate } from "@/lib/estate/use-estate";
 import { useHeirs } from "@/lib/estate/use-heirs";
 import { useVault } from "@/lib/estate/use-vault";
 
@@ -32,10 +33,11 @@ export function HeirsView({ requestedEstate }: { requestedEstate?: string }) {
 }
 
 /**
- * One estate's heirs. No `useEstate`: nothing here reads the clock. The vault is read only for its
- * token list, which each heir's claimed flags are keyed by.
+ * One estate's heirs. The estate is read for its status alone — registering closes once it unlocks.
+ * The vault is read only for its token list, which each heir's claimed flags are keyed by.
  */
 function Heirs({ selected, entries }: { selected: OwnedEstate; entries: readonly OwnedEstate[] }) {
+  const estate = useEstate(selected.estateId, selected.label);
   const vault = useVault(selected.estateId);
   const heirs = useHeirs(selected.estateId, selected.label, vault);
 
@@ -61,8 +63,8 @@ function Heirs({ selected, entries }: { selected: OwnedEstate; entries: readonly
           </Loaded>
         </div>
 
-        <Loaded load={heirs} title="name an heir">
-          {(heirs) => <AddHeirForm estateLabel={selected.label} heirs={heirs} />}
+        <Loaded load={all(estate, heirs)} title="name an heir">
+          {([estate, heirs]) => <AddHeirForm estate={estate} heirs={heirs} />}
         </Loaded>
       </div>
     </>

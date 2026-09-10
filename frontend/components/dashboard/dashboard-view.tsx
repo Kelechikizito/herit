@@ -88,7 +88,13 @@ function Dashboard({
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_1fr]">
         <Loaded load={estate} title="proof of life">
-          {(estate) => <ProofOfLifeCard estate={estate} now={now} />}
+          {(estate) => (
+            <ProofOfLifeCard
+              estate={estate}
+              now={now}
+              unlockRan={vault.status === "ready" && vault.data.snapshotTaken}
+            />
+          )}
         </Loaded>
 
         <div className="space-y-6">
@@ -105,8 +111,8 @@ function Dashboard({
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <ActivityCard entries={NO_ACTIVITY} />
-        <Loaded load={all(heirs, vault)} title="vault">
-          {([heirs, vault]) => <VaultCard heirs={heirs} vault={vault} />}
+        <Loaded load={all(estate, heirs, vault)} title="vault">
+          {([estate, heirs, vault]) => <VaultCard estate={estate} heirs={heirs} vault={vault} />}
         </Loaded>
       </div>
     </>

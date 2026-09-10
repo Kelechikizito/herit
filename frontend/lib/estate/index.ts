@@ -6,3 +6,4 @@ export * from "./presets";
 export * from "./ids";
 export * from "./selection";
 export * from "./load";
+export * from "./setup";

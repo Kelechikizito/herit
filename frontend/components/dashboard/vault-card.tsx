@@ -1,8 +1,10 @@
+import { VaultActions } from "@/components/dashboard/vault-actions";
 import { HeirAvatar } from "@/components/estate/heir-avatar";
 import { CardHeading } from "@/components/ui/card-heading";
 import { Blob } from "@/components/ui/deco";
-import { PlusIcon, VaultIcon } from "@/components/ui/icons";
+import { VaultIcon } from "@/components/ui/icons";
 import {
+  type Estate,
   type Heir,
   type Vault,
   formatTokenAmount,
@@ -11,8 +13,16 @@ import {
   shareOfAmount,
 } from "@/lib/estate";
 
-/** What is escrowed, and how it splits on unlock. */
-export function VaultCard({ heirs, vault }: { heirs: readonly Heir[]; vault: Vault }) {
+/** What is escrowed, how it splits on unlock, and the controls that move it in and out. */
+export function VaultCard({
+  estate,
+  heirs,
+  vault,
+}: {
+  estate: Estate;
+  heirs: readonly Heir[];
+  vault: Vault;
+}) {
   const [primary, ...others] = vault.tokens;
 
   return (
@@ -70,10 +80,7 @@ export function VaultCard({ heirs, vault }: { heirs: readonly Heir[]; vault: Vau
           </>
         )}
 
-        <button type="button" className="btn btn-ghost btn-sm mt-5 w-full">
-          <PlusIcon size={15} />
-          deposit
-        </button>
+        <VaultActions estate={estate} vault={vault} />
       </div>
     </section>
   );

@@ -33,23 +33,3 @@ export const NAME_STEP_FACTS: readonly { title: string; body: string }[] = [
     body: "each one a subname, each one permissioned separately",
   },
 ];
-
-/** The final review panel. Placeholder values until the wizard tracks real input. */
-export const SETUP_REVIEW: readonly { label: string; value: string }[] = [
-  { label: "estate name", value: "alice.herit.eth" },
-  { label: "check-in interval", value: "30 days" },
-  { label: "grace period", value: "7 days" },
-  { label: "unlocks after", value: "37 days" },
-  { label: "heirs", value: "3 subnames" },
-  { label: "allocated", value: "90%" },
-  { label: "vault deposit", value: "12.4 ETH" },
-];
-
-/** Defaults the wizard opens with. */
-export const SETUP_DEFAULTS = {
-  estateLabel: "alice",
-  interval: "30 days",
-  grace: "7 days",
-  unlocksAfter: "37 days",
-  depositEth: 12.4,
-} as const;

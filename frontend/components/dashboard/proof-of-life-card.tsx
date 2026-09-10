@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { CountdownRing } from "@/components/estate/countdown-ring";
+import { TxStatus } from "@/components/estate/tx-status";
 import { SelfieCheckModal } from "@/components/selfie-check/selfie-check-modal";
 import { CardHeading } from "@/components/ui/card-heading";
 import { DataRow } from "@/components/ui/data-row";
 import { Sparkle } from "@/components/ui/deco";
-import { ClockIcon, SelfieIcon } from "@/components/ui/icons";
+import { ClockIcon, FastForwardIcon, SelfieIcon } from "@/components/ui/icons";
+import { contracts } from "@/lib/contracts/contracts";
 import {
   type Estate,
   STATUS_COPY,
@@ -21,19 +23,34 @@ import {
   windowProgress,
 } from "@/lib/estate";
 import { useNow } from "@/lib/estate/use-now";
+import { useAttestedAction } from "@/lib/wagmi/use-attested-action";
+import { pendingLabel, useTransaction } from "@/lib/wagmi/use-transaction";
 
 /**
- * The check-in clock, and the button that resets it. Owns the Selfie Check modal, which is why
- * this card — rather than the whole dashboard — holds the modal state.
+ * The check-in clock, the button that resets it, and the permissionless poke that moves it on.
+ * Owns the Selfie Check modal, which is why this card — rather than the whole dashboard — holds
+ * the modal state.
  */
-export function ProofOfLifeCard({ estate, now }: { estate: Estate; now: number }) {
+export function ProofOfLifeCard({
+  estate,
+  now,
+  unlockRan,
+}: {
+  estate: Estate;
+  now: number;
+  /** The vault snapshot exists, so the unlock transition has already been stored. */
+  unlockRan: boolean;
+}) {
   const [checkingIn, setCheckingIn] = useState(false);
+  const checkIn = useAttestedAction("checkin");
+  const poke = useTransaction();
 
   // `estate.status` is the pending status `estateOf` returned; the ring only draws it.
   const tick = useNow(now);
   const configured = estate.clock.checkInInterval > 0;
   // No deadline until the first Selfie Check lands, so nothing to count toward.
-  const started = windowEndsAt(estate.clock) !== null;
+  const windowEnd = windowEndsAt(estate.clock);
+  const started = windowEnd !== null;
   const unlocked = estate.status === "unlocked";
 
   const remaining = secondsUntil(countdownTarget(estate.status, estate.clock), tick);
@@ -52,6 +69,16 @@ export function ProofOfLifeCard({ estate, now }: { estate: Estate; now: number }
     : !started
       ? "the clock starts at your first selfie check"
       : STATUS_COPY[estate.status].blurb;
+
+  const checkInBlocked = unlocked
+    ? "the estate has unlocked — a check-in can no longer reverse it"
+    : !configured
+      ? "set the timers before the first check-in"
+      : checkIn.blocked;
+
+  // `deadlinesOf.graceStartsAt` is this same sum. Past it, `pokeExpiry` has something to store —
+  // unless the unlock already ran, which the vault snapshot records.
+  const pokeable = windowEnd !== null && tick >= windowEnd && !(unlocked && unlockRan);
 
   return (
     <section className="card relative overflow-hidden p-6">
@@ -74,11 +101,41 @@ export function ProofOfLifeCard({ estate, now }: { estate: Estate; now: number }
       <button
         type="button"
         className="btn btn-pill w-full"
-        onClick={() => setCheckingIn(true)}
+        onClick={() => {
+          checkIn.reset();
+          setCheckingIn(true);
+        }}
+        disabled={checkInBlocked !== undefined || checkIn.busy}
       >
         <SelfieIcon size={18} />
-        check in now
+        {estate.status === "grace" ? "check in and cancel grace" : "check in now"}
       </button>
+      {checkInBlocked ? <p className="hint text-center">{checkInBlocked}</p> : null}
+
+      {pokeable ? (
+        <div className="mt-4 rounded-[8px] border-2 border-ink bg-cream px-4 py-3">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm w-full"
+            onClick={() =>
+              poke.send({
+                ...contracts.heritRegistry,
+                functionName: "pokeExpiry",
+                args: [estate.estateId],
+              })
+            }
+            disabled={poke.busy || poke.blocked !== undefined}
+          >
+            <FastForwardIcon size={15} />
+            {pendingLabel(poke.phase) ?? (unlocked ? "run the unlock now" : "record the missed check-in")}
+          </button>
+          <p className="hint">
+            permissionless — anyone may call <span className="mono">pokeExpiry</span>, and it does
+            nothing if there is nothing to record.
+          </p>
+          <TxStatus tx={poke} className="mt-2" />
+        </div>
+      ) : null}
 
       <dl className="mt-6 space-y-2.5 border-t-2 border-ink pt-5 text-sm">
         <DataRow label="last selfie check" value={formatStamp(estate.clock.lastCheckIn)} />
@@ -90,7 +147,10 @@ export function ProofOfLifeCard({ estate, now }: { estate: Estate; now: number }
         open={checkingIn}
         purpose={{ kind: "checkin", estateLabel: estate.label }}
         onClose={() => setCheckingIn(false)}
-        confirmLabel="reset the clock"
+        onVerified={checkIn.submit}
+        submission={checkIn.submission}
+        onResubmit={checkIn.submit}
+        confirmLabel="done"
       />
     </section>
   );
