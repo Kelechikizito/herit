@@ -43,6 +43,20 @@ export type Estate = {
   log: LogEntry[];
 };
 
+/** An estate the connected wallet opened and still owns the name of. */
+export type OwnedEstate = {
+  estateId: bigint;
+  label: string;
+};
+
+/** One place the connected wallet is named as an heir: which estate, and which name inside it. */
+export type HeirSlot = {
+  estateId: bigint;
+  estateLabel: string;
+  heirLabelhash: bigint;
+  heirLabel: string;
+};
+
 /** An heir paired with its position in the estate, so colours stay stable across filtered lists. */
 export type IndexedHeir = {
   heir: Heir;

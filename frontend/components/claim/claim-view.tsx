@@ -1,50 +1,47 @@
 "use client";
 
-import { useState } from "react";
 import { ClaimCard } from "@/components/claim/claim-card";
 import { CoHeirsCard } from "@/components/claim/co-heirs-card";
 import { EstateFactsCard } from "@/components/claim/estate-facts-card";
 import { UnlockBanner } from "@/components/claim/unlock-banner";
+import { EntrySwitcher } from "@/components/estate/entry-switcher";
+import { SelectionNotice } from "@/components/estate/selection-notice";
 import { PageHeader } from "@/components/layout/page-header";
-import { WalletIcon } from "@/components/ui/icons";
-import { WalletPicker } from "@/components/wallet/wallet-picker";
-import { formatAgo, formatStamp, fullName, unlockAt } from "@/lib/estate";
+import { formatAgo, formatStamp, fullName, heirSlotLink, unlockAt } from "@/lib/estate";
+import { useSelectedHeirSlot } from "@/lib/estate/use-discovery";
 import { SIGNED_IN_HEIR, unlockedEstate } from "@/lib/fixtures/estate";
-import { useWallet } from "@/lib/wagmi/use-wallet";
 
-export function ClaimView({ now }: { now: number }) {
-  const { address, isConnected, isReconnecting } = useWallet();
-  const [pickerOpen, setPickerOpen] = useState(false);
+export function ClaimView({
+  now,
+  requestedEstate,
+  requestedHeir,
+}: {
+  now: number;
+  requestedEstate?: string;
+  requestedHeir?: string;
+}) {
+  const resolved = useSelectedHeirSlot({ estate: requestedEstate, heir: requestedHeir });
 
-  if (isReconnecting) {
-    return <ClaimNotice title="checking your wallet" body="restoring the last connection." />;
-  }
-
-  if (!isConnected || address === undefined) {
+  if (resolved.kind !== "selected") {
     return (
-      <>
-        <ClaimNotice
-          title="connect to see your claim"
-          body="a claim is scoped to the wallet that controls the heir subname, so herit needs to know which wallet is asking."
-          action={
-            <button type="button" className="btn mt-5" onClick={() => setPickerOpen(true)}>
-              <WalletIcon size={14} />
-              connect wallet
-            </button>
-          }
-        />
-        <WalletPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
-      </>
+      <SelectionNotice
+        resolved={resolved}
+        audience="heir"
+        requested={requestedName(requestedEstate, requestedHeir)}
+        toLink={heirSlotLink}
+      />
     );
   }
 
-  const estate = unlockedEstate(now);
-  const named = estate.heirs.find(
-    (candidate) => candidate.address.toLowerCase() === address.toLowerCase(),
-  );
-  const demoSlot =
-    estate.heirs.find((candidate) => candidate.label === SIGNED_IN_HEIR) ?? estate.heirs[0];
-  const heir = named ?? { ...demoSlot, address };
+  const { selected: slot, address } = resolved;
+
+  // Only the slot is read from chain so far. Phase C replaces the fixture estate, heir row and
+  // claim state below with `useEstate`, `useHeirs` and `useClaim`.
+  const base = unlockedEstate(now);
+  const estate = { ...base, label: slot.estateLabel };
+  const demoHeir =
+    base.heirs.find((candidate) => candidate.label === SIGNED_IN_HEIR) ?? base.heirs[0];
+  const heir = { ...demoHeir, label: slot.heirLabel, address };
 
   const unlockedAt = unlockAt(estate.clock);
   const since = unlockedAt === null ? "unlocked" : `unlocked ${formatAgo(now - unlockedAt)}`;
@@ -62,6 +59,12 @@ export function ClaimView({ now }: { now: number }) {
         description={`you are named as ${heir.relationship} under ${fullName(estate)}. your claim role was dormant until the grantor's grace period lapsed.`}
       />
 
+      <EntrySwitcher
+        label="your claims"
+        links={resolved.entries.map(heirSlotLink)}
+        current={heirSlotLink(slot)}
+      />
+
       <UnlockBanner since={since} />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.05fr] lg:items-start">
@@ -76,23 +79,8 @@ export function ClaimView({ now }: { now: number }) {
   );
 }
 
-function ClaimNotice({
-  title,
-  body,
-  action,
-}: {
-  title: string;
-  body: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="card mx-auto mt-10 max-w-md p-8 text-center">
-      <span className="icon-box mx-auto bg-lavender">
-        <WalletIcon size={22} />
-      </span>
-      <h1 className="mt-4 text-2xl font-extrabold">{title}</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted">{body}</p>
-      {action}
-    </div>
-  );
+/** The name the URL asked for, as specific as its params allow. */
+function requestedName(estate?: string, heir?: string): string | undefined {
+  if (estate === undefined) return heir;
+  return heir === undefined ? `${estate}.herit.eth` : `${heir}.${estate}.herit.eth`;
 }

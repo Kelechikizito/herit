@@ -1,10 +1,16 @@
 import { ClaimView } from "@/components/claim/claim-view";
-import { nowSeconds } from "@/lib/estate";
+import { firstParam, nowSeconds } from "@/lib/estate";
 
-export default function ClaimPage() {
+export default async function ClaimPage({ searchParams }: PageProps<"/claim">) {
+  const { estate, heir } = await searchParams;
+
   return (
     <div className="mx-auto max-w-6xl">
-      <ClaimView now={nowSeconds()} />
+      <ClaimView
+        now={nowSeconds()}
+        requestedEstate={firstParam(estate)}
+        requestedHeir={firstParam(heir)}
+      />
     </div>
   );
 }
