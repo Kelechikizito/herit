@@ -59,7 +59,7 @@ back in.
 
 ```solidity
 error LivenessAttestor__ZeroAddress();
-error LivenessAttestor__InvalidSigner(address recovered);
+error LivenessAttestor__InvalidSignature();
 error LivenessAttestor__AttestationExpired(uint256 expiry);
 error LivenessAttestor__NonceUsed(uint256 nonce);
 error LivenessAttestor__WrongAction(bytes32 action);
@@ -70,9 +70,9 @@ error LivenessAttestor__CommitmentUsed(uint256 estateId, bytes32 commitment);
 error LivenessAttestor__ZeroCommitment();
 ```
 
-`InvalidSigner` carrying the recovered address is worth the extra word: when the backend and the
-contract disagree about the struct, that address is random noise, and seeing noise rather than a
-plausible-looking key tells you instantly that the *digest* is wrong and not the key.
+`InvalidSignature` carries nothing, the same as `MerkleAirdrop__InvalidSignature`. The address the
+signature actually recovered to is still the fastest way to debug a mismatch, so it is exposed as a
+view instead — §10.
 
 ---
 
@@ -192,11 +192,15 @@ and `ClaimManager` predicted.
 Both take the same two arguments and share one internal verifier.
 
 ```solidity
-function checkIn(Attestation calldata a, bytes calldata signature) external;
-function claim(Attestation calldata a, bytes calldata signature) external;
+function checkIn(Attestation calldata a, uint8 v, bytes32 r, bytes32 s) external;
+function claim(Attestation calldata a, uint8 v, bytes32 r, bytes32 s) external;
 ```
 
-### `_verify(Attestation calldata a, bytes calldata signature, bytes32 expectedAction)`
+Split `v, r, s`, like `MerkleAirdrop.claim`, not a packed `bytes`. The contract does no length or
+slicing work, and the frontend splits the backend's 65-byte signature before sending — viem's
+`parseSignature`, or `ethers.Signature.from`.
+
+### `_verify(Attestation calldata a, uint8 v, bytes32 r, bytes32 s, bytes32 expectedAction)`
 
 Shared, internal, and it **writes** — it burns the nonce. Order matters, cheapest and most likely
 to fail first:
@@ -213,19 +217,33 @@ to fail first:
    in the mempool or in a frontend log can replay it as themselves.
 4. `a.commitment != bytes32(0)`, else `ZeroCommitment`. A backend that fails to read the nullifier
    and signs zeros would otherwise bind every estate to the same "human".
-5. Recover and compare, else `InvalidSigner(recovered)`:
+5. The signature, else `InvalidSignature`:
    ```solidity
    bytes32 digest = getMessageHash(
        a.estateId, a.subject, a.action, a.heirLabelhash, a.commitment, a.nonce, a.expiry
    );
-   if (ECDSA.recover(digest, signature) != I_SIGNER) revert ...;
+   if (!_isValidSignature(I_SIGNER, digest, v, r, s)) revert LivenessAttestor__InvalidSignature();
    ```
 6. `!s_nonceUsed[a.nonce]`, else `NonceUsed`; then `s_nonceUsed[a.nonce] = true`. **Burn it here**,
    before either caller reaches its external call.
 
+### `_isValidSignature(address expectedSigner, bytes32 digest, uint8 v, bytes32 r, bytes32 s)`
+
+`internal pure returns (bool)`, the same three lines as `MerkleAirdrop._isValidSignature`:
+
+```solidity
+(address actualSigner,,) = ECDSA.tryRecover(digest, v, r, s);
+return actualSigner == expectedSigner;
+```
+
+`tryRecover` rather than `recover` because it returns instead of reverting, so the caller chooses
+the error. Checked in the OZ 5.7 source: this overload rejects a high `s` (the malleable half of
+every signature) and returns `address(0)` on any failure. The zero return is only safe because
+`I_SIGNER` can never be zero — the constructor rejects it. Keep that check.
+
 ### `checkIn`
 
-1. `_verify(a, signature, ACTION_CHECKIN)`.
+1. `_verify(a, v, r, s, ACTION_CHECKIN)`.
 2. **The subject must be the estate's grantor.** The registry does not check this — it trusts
    whoever this contract forwards — so it has to be checked here:
    ```solidity
@@ -241,13 +259,18 @@ to fail first:
 
 ### `claim`
 
-1. `_verify(a, signature, ACTION_CLAIM)`.
+1. `_verify(a, v, r, s, ACTION_CLAIM)`.
 2. `s_claimUsed[a.estateId][a.commitment]` must be false, else `CommitmentUsed`; set it true.
 3. Optional, and worth a sentence in the video: reject a claim whose commitment equals
    `s_estateCommitment[a.estateId]` — that is the grantor claiming from their own estate as one of
    their heirs.
 4. `I_CLAIM_MANAGER.claim(a.estateId, a.heirLabelhash, a.subject);`
 5. `emit ClaimAttested(...)`.
+
+Both functions are CHECKS then EFFECTS then INTERACTIONS, and worth marking that way as in
+`MerkleAirdrop.claim`: `_verify` and the grantor check are checks, the nonce burn and the
+commitment write are effects, and the call into `HeritRegistry` or `ClaimManager` is the single
+interaction at the end.
 
 Note what is *not* here: whether `a.subject` is really an heir, what their share is, whether they
 were already paid. `ClaimManager` and ENS answer all three, and duplicating any of them here would
@@ -283,10 +306,16 @@ into a real answer in one `cast call`, because the backend can ask the contract 
 expects and compare byte for byte. Keep it `public`. The rest:
 
 ```solidity
+/// @notice Who a signature actually recovers to. For debugging a mismatch.
+function recoverSigner(bytes32 digest, uint8 v, bytes32 r, bytes32 s) external pure returns (address);
+
 function nonceUsed(uint256 nonce) external view returns (bool);
 function commitmentOf(uint256 estateId) external view returns (bytes32);
 function claimCommitmentUsed(uint256 estateId, bytes32 commitment) external view returns (bool);
 ```
+
+`recoverSigner` is what `InvalidSignature` no longer tells you. Noise means the digest is wrong;
+a plausible address means the key is wrong. Two different afternoons.
 
 `EIP712` also gives you `eip712Domain()` free (ERC-5267), which returns the name, version, chain id
 and verifying contract — that is what the backend reads to build its domain rather than being told
@@ -311,8 +340,9 @@ types: { Attestation: [
 
 ## 11. Do it in this order
 
-1. §2–§7 — imports through constructor, plus `getMessageHash`. `forge build`, then sign a digest in
-   a Foundry test with `vm.sign` and check it recovers to the signer. Get that green before writing
+1. §2–§7 — imports through constructor, plus `getMessageHash` and `_isValidSignature`.
+   `forge build`, then in a Foundry test `(uint8 v, bytes32 r, bytes32 s) = vm.sign(signerKey,
+   getMessageHash(...))` and check `_isValidSignature` returns true. Get that green before writing
    anything else; everything below assumes the digest is right.
 2. `_verify`, all six checks.
 3. `checkIn`, including the grantor check and the bind-or-match.
@@ -332,7 +362,8 @@ Step 1 is where the whole checkpoint either goes smoothly or eats an afternoon.
 - A second check-in with a different commitment reverts `WrongHuman` — this is the demo's "the
   thief has the key and still cannot check in" moment.
 - Someone other than `a.subject` sending a valid attestation reverts `SubjectMismatch`.
-- One signature altered by a byte reverts, and an expired one reverts, both with their own errors.
+- A signature signed by any other key reverts `InvalidSignature`, and an expired one reverts
+  `AttestationExpired`.
 - You can say in one sentence why the nullifier is salted. That answer is worth points with the
   World judges, and it is the last line of Checkpoint 10.
 
