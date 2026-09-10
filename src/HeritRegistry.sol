@@ -364,24 +364,19 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     /// @dev Stored `status` is a cache that only moves on `pokeExpiry`. This is the truth, and
     ///      every guard here plus `HeritVault` via `statusOf` must read it rather than the field.
     function _pendingStatus(uint256 estateId) internal view returns (Status) {
-        Estate storage estate = s_estates[estateId];
-
         // First, before any arithmetic. Unlock is irreversible: once stored, ENS roles are granted
         // and the vault is frozen. No date maths may argue with it.
-        if (estate.status == Status.Unlocked) {
+        if (s_estates[estateId].status == Status.Unlocked) {
             return Status.Unlocked;
         }
 
+        (uint256 graceStartsAt, uint256 unlocksAt) = _deadlines(estateId);
+
         // Not configured, or not started. `Active` and not `Unlocked`: a zero `lastCheckIn` puts
         // the deadline in 1970, which would unlock every estate nobody has set up yet.
-        if (estate.checkInInterval == 0 || estate.lastCheckIn == 0) {
+        if (graceStartsAt == 0) {
             return Status.Active;
         }
-
-        // Widened to `uint256` before adding. Caller-set timers could otherwise wrap a `uint64`
-        // into a deadline in the past and unlock a healthy estate.
-        uint256 graceStartsAt = uint256(estate.lastCheckIn) + estate.checkInInterval;
-        uint256 unlocksAt = graceStartsAt + estate.graceDuration;
 
         // `graceStartsAt` is the first Grace second, not the last Active one. Same at unlock.
         if (block.timestamp < graceStartsAt) {
@@ -391,6 +386,19 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
             return Status.Grace;
         }
         return Status.Unlocked;
+    }
+
+    /// @dev The two moments the state machine turns on. Zero for both when the estate has no timers
+    ///      or has never checked in, which is the case `_pendingStatus` reads as Active.
+    function _deadlines(uint256 estateId) internal view returns (uint256 graceStartsAt, uint256 unlocksAt) {
+        Estate storage estate = s_estates[estateId];
+        if (estate.checkInInterval == 0 || estate.lastCheckIn == 0) {
+            return (0, 0);
+        }
+        // Widened to `uint256` before adding. Caller-set timers could otherwise wrap a `uint64`
+        // into a deadline in the past and unlock a healthy estate.
+        graceStartsAt = uint256(estate.lastCheckIn) + estate.checkInInterval;
+        unlocksAt = graceStartsAt + estate.graceDuration;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -418,6 +426,31 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     }
 
     // To check whether a label is available for registration,
+    /// @notice Every timer on one estate in a single read, for the dashboard countdown.
+    /// @dev `status` is the pending one, not the cached field, so it cannot disagree with
+    ///      `statusOf`. Everything else is storage as written.
+    function estateOf(uint256 estateId) external view returns (Estate memory estate) {
+        estate = s_estates[estateId];
+        estate.status = _pendingStatus(estateId);
+    }
+
+    /// @notice When this estate enters Grace and when it unlocks, in unix seconds.
+    /// @dev Both zero until the estate is configured and has checked in once. Same arithmetic the
+    ///      state machine runs, so the countdown on screen and the transition on-chain agree.
+    function deadlinesOf(uint256 estateId) external view returns (uint256 graceStartsAt, uint256 unlocksAt) {
+        return _deadlines(estateId);
+    }
+
+    /// @notice The address recorded for one heir.
+    function heirAddressOf(uint256 estateId, uint256 heirLabelhash) external view returns (address) {
+        return s_heirAddress[estateId][heirLabelhash];
+    }
+
+    /// @notice One heir's estate-wide share, before any per-token override.
+    function defaultShareOf(uint256 estateId, uint256 heirLabelhash) external view returns (uint16) {
+        return s_defaultShare[estateId][heirLabelhash];
+    }
+
     function isAvailable(string calldata label) external view returns (bool) {
         IPermissionedRegistry.State memory state = I_GRANTOR_REGISTRY.getState(uint256(keccak256(bytes(label))));
         return state.status == IPermissionedRegistry.Status.AVAILABLE;
