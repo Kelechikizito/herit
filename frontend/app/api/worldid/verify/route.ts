@@ -8,7 +8,9 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import { recordCheckIn, recordClaim } from "@/lib/server/nullifier-ledger";
+import { herit } from "@/lib/contracts/addresses";
+import { estateIdOf, heirLabelhashOf, isLabel } from "@/lib/estate/ids";
+import { preflightCheckIn, preflightClaim } from "@/lib/server/preflight";
 import { actionString, type SelfieCheckPurpose } from "@/lib/selfie-check";
 import { sepolia } from "@/lib/wagmi/chains";
 
@@ -33,8 +35,6 @@ const SELFIE_LEGACY_IDENTIFIER = "face";
 
 /** Well under the contract's 30-minute `MAX_ATTESTATION_LIFETIME`, which rejects a long expiry as hard as a stale one. */
 const ATTESTATION_TTL_SECONDS = 5 * 60;
-
-const LABEL_PATTERN = /^[a-z0-9-]{1,63}$/;
 
 /** Field order must match `ATTESTATION_TYPEHASH` exactly, or the digest differs and recovery fails. */
 const ATTESTATION_TYPES = {
@@ -83,20 +83,11 @@ export async function POST(request: Request) {
 
     // 2. The estate id is derived, not taken from the caller — it is the same labelhash the gate
     //    computes, and the label is already validated above.
-    const estateId = labelhash(purpose.estateLabel);
+    const estateId = estateIdOf(purpose.estateLabel);
     // `BigInt(0)`, not `0n`: tsconfig targets ES2017, which has no BigInt literals.
-    const heirLabelhash = purpose.kind === "claim" ? labelhash(purpose.heirLabel) : BigInt(0);
+    const heirLabelhash = purpose.kind === "claim" ? heirLabelhashOf(purpose.heirLabel) : BigInt(0);
 
-    // 3. The ledger, before signing, so a replay is refused here instead of costing the user a
-    //    reverted transaction. Two different rules — see lib/server/nullifier-ledger.ts. The
-    //    contract enforces both regardless; this is the early, visible failure.
-    const ledger =
-      purpose.kind === "checkin"
-        ? await recordCheckIn(estateId.toString(), nullifier)
-        : await recordClaim(estateId.toString(), nullifier);
-    if (!ledger.ok) throw new VerificationError(ledger.reason);
-
-    // 4. Salt the nullifier into a commitment. This encoding is permanent: `s_estateCommitment`
+    // 3. Salt the nullifier into a commitment. This encoding is permanent: `s_estateCommitment`
     //    binds an estate to the first commitment it sees, so changing it makes every returning
     //    grantor look like a different human.
     const commitment = keccak256(
@@ -105,6 +96,15 @@ export async function POST(request: Request) {
         [BigInt(nullifier), config.nullifierSalt],
       ),
     );
+
+    // 4. Read the chain before signing, so a transaction that would revert is refused here instead
+    //    of costing the user gas. Nothing is recorded: the chain is the ledger, and an attestation
+    //    that never lands leaves no trace. See lib/server/preflight.ts.
+    const preflight =
+      purpose.kind === "checkin"
+        ? await preflightCheckIn({ estateId, subject, commitment })
+        : await preflightClaim({ estateId, subject, commitment, heirLabelhash });
+    if (!preflight.ok) throw new VerificationError(preflight.reason);
 
     const attestation = {
       estateId,
@@ -126,7 +126,8 @@ export async function POST(request: Request) {
         name: "Herit",
         version: "1",
         chainId: sepolia.id,
-        verifyingContract: config.attestorAddress,
+        // The same constant the client sends the transaction to, never an env key that can drift.
+        verifyingContract: herit.livenessAttestor,
       },
       types: ATTESTATION_TYPES,
       primaryType: "Attestation",
@@ -224,11 +225,6 @@ function errorDetail(payload: unknown): string | null {
   return null;
 }
 
-/** The same value the gate computes: `uint256(keccak256(bytes(label)))`. */
-function labelhash(label: string): bigint {
-  return BigInt(keccak256(toBytes(label)));
-}
-
 function randomUint256(): bigint {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -239,10 +235,6 @@ function readConfig() {
   const rpId = required("WLD_RP_ID", process.env.WLD_RP_ID);
   const nullifierSalt = required("NULLIFIER_SALT", process.env.NULLIFIER_SALT);
   const attestorKey = required("ATTESTOR_PRIVATE_KEY", process.env.ATTESTOR_PRIVATE_KEY);
-  const attestorAddress = required(
-    "NEXT_PUBLIC_ATTESTOR_ADDRESS",
-    process.env.NEXT_PUBLIC_ATTESTOR_ADDRESS,
-  );
 
   // Shapes checked here so a malformed value is our own error, not an exception from viem that
   // might quote the key back.
@@ -252,15 +244,11 @@ function readConfig() {
   if (!isHex(attestorKey) || attestorKey.length !== 66) {
     throw new ConfigError("ATTESTOR_PRIVATE_KEY must be 32 hex bytes, 0x-prefixed");
   }
-  if (!isAddress(attestorAddress)) {
-    throw new ConfigError("NEXT_PUBLIC_ATTESTOR_ADDRESS must be an address");
-  }
 
   return {
     rpId,
     nullifierSalt: nullifierSalt as Hex,
     attestorKey: attestorKey as Hex,
-    attestorAddress,
   };
 }
 
@@ -296,12 +284,12 @@ function parsePurpose(purpose: unknown): SelfieCheckPurpose {
   }
   const { kind, estateLabel, heirLabel } = purpose as Record<string, unknown>;
 
-  if (typeof estateLabel !== "string" || !LABEL_PATTERN.test(estateLabel)) {
+  if (!isLabel(estateLabel)) {
     throw new BadRequestError("estateLabel must be a lowercase ENS label");
   }
   if (kind === "checkin") return { kind, estateLabel };
   if (kind === "claim") {
-    if (typeof heirLabel !== "string" || !LABEL_PATTERN.test(heirLabel)) {
+    if (!isLabel(heirLabel)) {
       throw new BadRequestError("heirLabel must be a lowercase ENS label");
     }
     return { kind, estateLabel, heirLabel };

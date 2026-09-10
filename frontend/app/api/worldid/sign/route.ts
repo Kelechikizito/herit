@@ -1,6 +1,7 @@
 import { signRequest } from "@worldcoin/idkit/signing";
 import type { RpContext } from "@worldcoin/idkit";
 
+import { isLabel } from "@/lib/estate/ids";
 import {
   actionString,
   WLD_ENVIRONMENTS,
@@ -26,9 +27,6 @@ import {
 
 /** The RP signature's lifetime. Long enough to hold a phone, short enough to be worthless later. */
 const RP_SIGNATURE_TTL_SECONDS = 120;
-
-/** An ENS label, since the estate label is what scopes the World ID nullifier. */
-const LABEL_PATTERN = /^[a-z0-9-]{1,63}$/;
 
 /** A bad request from the caller. Its message is safe to return. */
 class BadRequestError extends Error {}
@@ -160,7 +158,7 @@ function parsePurpose(body: unknown): SelfieCheckPurpose {
   }
 
   const { kind, estateLabel, heirLabel } = purpose as Record<string, unknown>;
-  if (typeof estateLabel !== "string" || !LABEL_PATTERN.test(estateLabel)) {
+  if (!isLabel(estateLabel)) {
     throw new BadRequestError("estateLabel must be a lowercase ENS label");
   }
 
@@ -168,7 +166,7 @@ function parsePurpose(body: unknown): SelfieCheckPurpose {
     return { kind, estateLabel };
   }
   if (kind === "claim") {
-    if (typeof heirLabel !== "string" || !LABEL_PATTERN.test(heirLabel)) {
+    if (!isLabel(heirLabel)) {
       throw new BadRequestError("heirLabel must be a lowercase ENS label");
     }
     return { kind, estateLabel, heirLabel };
