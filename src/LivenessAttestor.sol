@@ -90,7 +90,7 @@ contract LivenessAttestor is EIP712 {
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
-    /// @questi
+    // @questi
     function checkIn(Attestation calldata a, bytes calldata signature) external {
         // The subject must be the estate's grantor.
         if (I_HERIT_REGISTRY.I_GRANTOR_REGISTRY().getOwner(a.estateId) != a.subject) {
