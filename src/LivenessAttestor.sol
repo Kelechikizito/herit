@@ -13,6 +13,7 @@ contract LivenessAttestor is EIP712 {
     //////////////////////////////////////////////////////////////*/
     error LivenessAttestor__ZeroAddress();
     error LivenessAttestor__InvalidSigner(address recovered);
+    error LivenessAttestor__InvalidSignature();
     error LivenessAttestor__AttestationExpired(uint256 expiry);
     error LivenessAttestor__NonceUsed(uint256 nonce);
     error LivenessAttestor__WrongAction(bytes32 action);
@@ -35,13 +36,13 @@ contract LivenessAttestor is EIP712 {
         uint256 expiry; // unix seconds
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            STATE VARIABLES
-    //////////////////////////////////////////////////////////////*/
     bytes32 private constant ATTESTATION_TYPEHASH = keccak256(
         "Attestation(uint256 estateId,address subject,bytes32 action,uint256 heirLabelhash,bytes32 commitment,uint256 nonce,uint256 expiry)"
     );
 
+    /*//////////////////////////////////////////////////////////////
+                            STATE VARIABLES
+    //////////////////////////////////////////////////////////////*/
     bytes32 public constant ACTION_CHECKIN = keccak256("checkin");
     bytes32 public constant ACTION_CLAIM = keccak256("claim");
 
@@ -89,10 +90,68 @@ contract LivenessAttestor is EIP712 {
     /*//////////////////////////////////////////////////////////////
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    function checkIn(Attestation calldata a, bytes calldata signature) external {
+        // The subject must be the estate's grantor.
+        if (I_HERIT_REGISTRY.I_GRANTOR_REGISTRY().getOwner(a.estateId) != a.subject) {
+            revert LivenessAttestor__NotTheGrantor(a.estateId, a.subject);
+        }
+
+        bytes32 bound = s_estateCommitment[a.estateId];
+        if (bound != bytes32(0) && bound != a.commitment) {
+            revert LivenessAttestor__WrongHuman(a.estateId);
+        }
+
+        _verify(a, signature, ACTION_CHECKIN);
+
+        if (bound == bytes32(0)) {
+            s_estateCommitment[a.estateId] = a.commitment;
+        }
+
+        I_HERIT_REGISTRY.checkIn(a.estateId);
+
+        if (bound == bytes32(0)) {
+            emit EstateBound(a.estateId, a.commitment);
+        }
+        emit CheckInAttested(a.estateId, a.subject, a.nonce);
+    }
+
+    function claim(Attestation calldata a, bytes calldata signature) external {
+        if (s_claimUsed[a.estateId][a.commitment]) {
+            revert LivenessAttestor__CommitmentUsed(a.estateId, a.commitment);
+        }
+        if (s_estateCommitment[a.estateId] == a.commitment) {
+            revert LivenessAttestor__WrongHuman(a.estateId);
+        }
+
+        _verify(a, signature, ACTION_CLAIM);
+
+        s_claimUsed[a.estateId][a.commitment] = true;
+
+        I_CLAIM_MANAGER.claim(a.estateId, a.heirLabelhash, a.subject);
+
+        emit ClaimAttested(a.estateId, a.heirLabelhash, a.subject, a.nonce);
+    }
 
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+    function _verify(Attestation calldata a, bytes calldata signature, bytes32 expectedAction) internal returns (bool) {
+        if (a.action != expectedAction) revert LivenessAttestor__WrongAction(a.action);
+        if (a.expiry < block.timestamp) revert LivenessAttestor__AttestationExpired(a.expiry);
+        if (a.expiry > block.timestamp + MAX_ATTESTATION_LIFETIME) {
+            revert LivenessAttestor__AttestationExpired(a.expiry);
+        }
+        if (a.subject != msg.sender) revert LivenessAttestor__SubjectMismatch(a.subject, msg.sender);
+        if (a.commitment == bytes32(0)) revert LivenessAttestor__ZeroCommitment();
+        bytes32 digest =
+            getMessageHash(a.estateId, a.subject, a.action, a.heirLabelhash, a.commitment, a.nonce, a.expiry);
+        if (ECDSA.recover(digest, signature) != I_SIGNER) revert LivenessAttestor__InvalidSignature();
+        if (s_nonceUsed[a.nonce]) {
+            revert LivenessAttestor__NonceUsed(a.nonce);
+        }
+        s_nonceUsed[a.nonce] = true;
+        return true;
+    }
 
     /*//////////////////////////////////////////////////////////////
                       EXTERNAL VIEW/PURE FUNCTIONS
@@ -133,5 +192,17 @@ contract LivenessAttestor is EIP712 {
                 )
             )
         );
+    }
+
+    function nonceUsed(uint256 nonce) external view returns (bool) {
+        return s_nonceUsed[nonce];
+    }
+
+    function commitmentOf(uint256 estateId) external view returns (bytes32) {
+        return s_estateCommitment[estateId];
+    }
+
+    function claimCommitmentUsed(uint256 estateId, bytes32 commitment) external view returns (bool) {
+        return s_claimUsed[estateId][commitment];
     }
 }

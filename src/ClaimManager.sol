@@ -30,7 +30,8 @@ contract ClaimManager is ReentrancyGuard {
     HeritVault public immutable I_VAULT;
     address public immutable I_ATTESTOR; // liveness attestor contract address
 
-    mapping(uint256 estateId => mapping(uint256 heirLabelhash => mapping(address token => bool paid))) private s_paid; // Per heir per token // the mapping checks if a perticular user has claimed a particular token. An heir can be entitked to multipkle tokens, but can only claim each token once.
+    /// @dev One heir, one token, paid once. An heir can hold a share of several tokens.
+    mapping(uint256 estateId => mapping(uint256 heirLabelhash => mapping(address token => bool paid))) private s_paid;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -74,8 +75,9 @@ contract ClaimManager is ReentrancyGuard {
         nonReentrant
         onlyAttestor
         returns (uint256 tokensPaid)
-    /// @question: this function is supppose to allow heirs ti claim by token too, Right?
     {
+        // Unlock is time-based but not automatic: the roles and the vault snapshot only land on a poke.
+        I_HERIT_REGISTRY.pokeExpiry(estateId);
         if (I_HERIT_REGISTRY.statusOf(estateId) != IHeritRegistry.Status.Unlocked) {
             revert ClaimManager__EstateNotUnlocked(estateId);
         }
@@ -92,10 +94,12 @@ contract ClaimManager is ReentrancyGuard {
             address token = tokens[i];
             if (s_paid[estateId][heirLabelhash][token]) continue;
             uint256 bps = I_HERIT_REGISTRY.shareOf(estateId, heirLabelhash, token);
-            if (bps == 0) continue; // no share of this asset, therfore, nothing to record.
+            if (bps == 0) continue; // no share of this asset, therefore nothing to record.
             if (bps > BPS_DENOMINATOR) revert ClaimManager__InvalidShare(bps);
             s_paid[estateId][heirLabelhash][token] = true;
-            uint256 amount = I_VAULT.payOut(estateId, token, heir, uint16(bps)); // forge-lint: disable-next-line(unsafe-typecast)
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint256 amount = I_VAULT.payOut(estateId, token, heir, uint16(bps));
+            if (amount == 0) continue; // share rounded down to nothing
             tokensPaid++;
             emit Claimed(estateId, heirLabelhash, heir, token, amount);
         }
