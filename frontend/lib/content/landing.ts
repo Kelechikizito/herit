@@ -11,11 +11,8 @@ import {
   VaultIcon,
 } from "@/components/ui/icons";
 
-/** Every word the landing page says, kept out of the components that lay it out. */
-
 type Icon = ComponentType<IconProps>;
 
-/** The two failures ARCHITECTURE.md §2 opens with, each paired with herit's answer. */
 export const PROBLEMS: readonly {
   broken: string;
   brokenBody: string;
@@ -46,7 +43,6 @@ export const PROBLEMS: readonly {
   },
 ];
 
-/** The setup path, told once on the landing page and walked for real in `/setup`. */
 export const JOURNEY_STEPS: readonly {
   title: string;
   body: string;

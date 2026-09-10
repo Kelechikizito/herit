@@ -6,9 +6,10 @@ import {
   type Estate,
   allocatedBps,
   bpsToPercent,
+  formatDuration,
 } from "@/lib/estate";
 
-/** The estate at a glance: four figures and the share allocation bar. */
+/** The estate at a glance. */
 export function EstateSummaryCard({ estate }: { estate: Estate }) {
   const allocated = allocatedBps(estate);
 
@@ -30,8 +31,8 @@ export function EstateSummaryCard({ estate }: { estate: Estate }) {
         <StatBox label="in vault" value={`${estate.vaultEth} ETH`} sub="HeritVault escrow" />
         <StatBox
           label="check-in every"
-          value={estate.checkInInterval}
-          sub={`+ ${estate.graceDuration} grace`}
+          value={formatDuration(estate.clock.checkInInterval)}
+          sub={`+ ${formatDuration(estate.clock.graceDuration)} grace`}
         />
       </div>
 

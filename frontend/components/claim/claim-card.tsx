@@ -14,13 +14,16 @@ import {
   shareOfVault,
   shortAddress,
 } from "@/lib/estate";
-import { UNLOCK_SUMMARY } from "@/lib/fixtures/estate";
 
-/**
- * The heir's own share, and the Selfie Check that releases it. Owns the modal, which is why this
- * card — rather than the whole claim screen — is the client boundary.
- */
-export function ClaimCard({ estate, heir }: { estate: Estate; heir: Heir }) {
+export function ClaimCard({
+  estate,
+  heir,
+  graceLapsed,
+}: {
+  estate: Estate;
+  heir: Heir;
+  graceLapsed: string;
+}) {
   const [claiming, setClaiming] = useState(false);
   const share = shareOfVault(estate.vaultEth, heir.shareBps);
 
@@ -55,7 +58,7 @@ export function ClaimCard({ estate, heir }: { estate: Estate; heir: Heir }) {
       </button>
 
       <ul className="mt-6 space-y-3 border-t-2 border-ink pt-5">
-        <Requirement met label="estate is unlocked" detail={UNLOCK_SUMMARY.graceLapsed} />
+        <Requirement met label="estate is unlocked" detail={graceLapsed} />
         <Requirement
           met
           label="you control the subname"

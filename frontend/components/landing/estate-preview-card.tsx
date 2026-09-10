@@ -4,18 +4,36 @@ import { ShareChip } from "@/components/estate/role-chip";
 import { StatusPill } from "@/components/estate/status-pill";
 import { Blob, Star } from "@/components/ui/deco";
 import { LockIcon } from "@/components/ui/icons";
-import { bpsToPercent, type Estate, fullName, type Heir } from "@/lib/estate";
-import { SAMPLE_ESTATE } from "@/lib/fixtures/estate";
+import {
+  bpsToPercent,
+  countdownTarget,
+  type Estate,
+  formatCountdown,
+  formatDuration,
+  fullName,
+  type Heir,
+  phaseSeconds,
+  secondsUntil,
+  windowProgress,
+} from "@/lib/estate";
+import { DESIGN_NOW, sampleEstate } from "@/lib/fixtures/estate";
 
 /** How many heirs fit in the hero card before it starts crowding the ring. */
 const PREVIEW_HEIRS = 2;
 
 /**
  * A frozen snapshot of the dashboard, sitting beside the hero copy. Built from the same fixture
- * and the same components the app screens use, so the marketing page can never drift from them.
+ * and the same components the app screens use.
  */
 export function EstatePreviewCard() {
-  const estate = SAMPLE_ESTATE;
+  // The design epoch, not the wall clock: a marketing snapshot that renders identically
+  // forever beats one that quietly slides into grace.
+  const estate = sampleEstate();
+  const remaining = secondsUntil(
+    countdownTarget(estate.status, estate.clock),
+    DESIGN_NOW,
+  );
+  const progress = windowProgress(phaseSeconds(estate.status, estate.clock), remaining);
 
   return (
     <div className="relative">
@@ -31,13 +49,15 @@ export function EstatePreviewCard() {
         </div>
 
         <div className="my-6 flex justify-center">
-          <CountdownRing progress={estate.progress} status={estate.status} size={190}>
+          <CountdownRing progress={progress} status={estate.status} size={190}>
             <p className="text-[0.68rem] font-bold tracking-wide text-muted">
               next check-in
             </p>
-            <p className="mono text-3xl font-extrabold leading-tight">{estate.remaining}</p>
+            <p className="mono text-3xl font-extrabold leading-tight">
+              {formatCountdown(remaining)}
+            </p>
             <p className="mt-0.5 text-[0.68rem] text-muted">
-              of a {estate.checkInInterval} window
+              of a {formatDuration(estate.clock.checkInInterval)} window
             </p>
           </CountdownRing>
         </div>

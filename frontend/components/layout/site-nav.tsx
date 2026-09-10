@@ -2,17 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { WalletIcon } from "@/components/ui/icons";
+import { ConnectCta } from "@/components/wallet/connect-cta";
+import { ConnectWallet } from "@/components/wallet/connect-wallet";
 import { APP_LINKS, MARKETING_LINKS } from "@/lib/content/navigation";
-import { CONNECTED_ADDRESS } from "@/lib/fixtures/estate";
-import { shortAddress } from "@/lib/estate";
 import { Logo } from "./logo";
 
-/**
- * The floating navbar. White surface, 2px ink border on all sides, hard shadow, sticky at 16px -
- * the shape DESIGN.md describes, shared by the marketing page and the app shell so the two never
- * read as separate products.
- */
+
 export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "app" }) {
   const pathname = usePathname();
   const app = variant === "app";
@@ -39,30 +34,21 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "ap
           })}
         </div>
 
-        {app ? <ConnectedWallet /> : <MarketingActions />}
+        {app ? <ConnectWallet /> : <MarketingActions />}
       </nav>
     </div>
-  );
-}
-
-function ConnectedWallet() {
-  return (
-    <span className="tag tag-shadow bg-teal">
-      <WalletIcon size={14} />
-      <span className="mono">{shortAddress(CONNECTED_ADDRESS)}</span>
-    </span>
   );
 }
 
 function MarketingActions() {
   return (
     <div className="flex items-center gap-2">
-      <Link href="/claim" className="btn btn-ghost btn-sm hidden sm:inline-flex">
+      <ConnectCta href="/claim" className="btn btn-ghost btn-sm hidden sm:inline-flex">
         i am an heir
-      </Link>
-      <Link href="/setup" className="btn btn-sm">
+      </ConnectCta>
+      <ConnectCta href="/setup" className="btn btn-sm">
         open an estate
-      </Link>
+      </ConnectCta>
     </div>
   );
 }

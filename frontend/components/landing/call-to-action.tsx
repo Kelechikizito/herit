@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { Sparkle, Star } from "@/components/ui/deco";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { Reveal } from "@/components/ui/reveal";
+import { ConnectCta } from "@/components/wallet/connect-cta";
 
 /** The closing panel. */
 export function CallToAction() {
@@ -24,13 +24,13 @@ export function CallToAction() {
               demo timers run in minutes so you can watch the whole handover happen.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/setup" className="btn btn-pill">
+              <ConnectCta href="/setup" className="btn btn-pill">
                 open an estate
                 <ArrowRightIcon size={16} />
-              </Link>
-              <Link href="/claim" className="btn btn-ghost btn-pill">
+              </ConnectCta>
+              <ConnectCta href="/claim" className="btn btn-ghost btn-pill">
                 check a claim
-              </Link>
+              </ConnectCta>
             </div>
           </div>
         </Reveal>
