@@ -1,7 +1,8 @@
 "use client";
 
 import { useReadContract } from "wagmi";
-import { heritRegistryAbi } from "@/lib/contracts/abis/heritRegistry";
+import { heritRegistryAbi } from "@/lib/contracts/abis/heritRegistry.abi";
+import { herit } from "@/lib/contracts/addresses";
 import type { EstateStatus } from "./types";
 
 const STATUS_BY_INDEX = ["active", "grace", "unlocked"] as const satisfies readonly EstateStatus[];
@@ -14,15 +15,12 @@ function toEstateStatus(value: number): EstateStatus {
   return status;
 }
 
-const HERIT_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_HERIT_REGISTRY_ADDRESS as
-  | `0x${string}`
-  | undefined;
+const HERIT_REGISTRY_ADDRESS = herit.heritRegistry;
 
 /** Roughly a Sepolia block. Fast enough for the demo, slow enough not to hammer the RPC. */
 const POLL_MS = 12_000;
 
-const enabledFor = (estateId: bigint | undefined) =>
-  HERIT_REGISTRY_ADDRESS !== undefined && estateId !== undefined;
+const enabledFor = (estateId: bigint | undefined) => estateId !== undefined;
 
 /** `HeritRegistry.statusOf`*/
 export function useEstateStatus(estateId: bigint | undefined) {

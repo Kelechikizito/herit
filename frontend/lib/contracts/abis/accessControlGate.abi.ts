@@ -161,6 +161,25 @@ export const accessControlGateAbi = [
   },
   {
     "type": "function",
+    "name": "estatesOfGrantor",
+    "inputs": [
+      {
+        "name": "grantor",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "openEstate",
     "inputs": [
       {

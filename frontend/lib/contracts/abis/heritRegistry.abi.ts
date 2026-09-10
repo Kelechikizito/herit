@@ -82,6 +82,32 @@ export const heritRegistryAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_CHECK_IN_INTERVAL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_GRACE_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "MAX_HEIRS",
     "inputs": [],
     "outputs": [
@@ -102,6 +128,32 @@ export const heritRegistryAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_CHECK_IN_INTERVAL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_GRACE_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"
@@ -144,6 +196,119 @@ export const heritRegistryAbi = [
   },
   {
     "type": "function",
+    "name": "deadlinesOf",
+    "inputs": [
+      {
+        "name": "estateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "graceStartsAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "unlocksAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "defaultShareOf",
+    "inputs": [
+      {
+        "name": "estateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "heirLabelhash",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "estateOf",
+    "inputs": [
+      {
+        "name": "estateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "estate",
+        "type": "tuple",
+        "internalType": "struct HeritRegistry.Estate",
+        "components": [
+          {
+            "name": "lastCheckIn",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "checkInInterval",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "graceDuration",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IHeritRegistry.Status"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "heirAddressOf",
+    "inputs": [
+      {
+        "name": "estateId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "heirLabelhash",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "heirLabelOf",
     "inputs": [
       {
@@ -162,6 +327,37 @@ export const heritRegistryAbi = [
         "name": "",
         "type": "string",
         "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "heirSlotsOf",
+    "inputs": [
+      {
+        "name": "heir",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct HeritRegistry.HeirSlot[]",
+        "components": [
+          {
+            "name": "estateId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "heirLabelhash",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
