@@ -167,19 +167,48 @@ predict-registry-a: ## The address deploy-registry-a will produce, before spendi
 predict-resolver: ## The address deploy-resolver will produce, before spending anything
 	forge script script/DeployResolver.s.sol --sig "predict(address)" $(SENDER) $(READONLY)
 
+##@ Checkpoint 9.5 — deploy the five Herit contracts
+
+# All five hold each other as immutable constructor arguments, so they go out as one nonce
+# sequence and cannot be deployed separately. Predict, dry-run, deploy, check:
+#
+#   make predict-herit
+#   make deploy-herit-dry
+#   make deploy-herit
+#   make check-herit ATTESTOR=0x...
+#
+# Nothing else may spend a nonce on ACCOUNT while deploy-herit runs — a stray transaction
+# shifts every predicted address and the script aborts part-way through.
+#
+# HERIT_ATTESTOR_SIGNER: the backend's attestor address from Checkpoint 10. It is immutable
+# on LivenessAttestor once deployed, so a wrong one means redeploying all five. Export it,
+# or override on the command line: make deploy-herit HERIT_ATTESTOR_SIGNER=0x...
+export HERIT_ATTESTOR_SIGNER
+
+.PHONY: predict-herit
+predict-herit: ## The five addresses deploy-herit will produce, before spending anything
+	forge script script/DeployHerit.s.sol --sig "predict(address)" $(SENDER) $(READONLY)
+
+.PHONY: deploy-herit-dry
+deploy-herit-dry: ## Run the whole deployment against a fork, free, before paying for it
+	forge script script/DeployHerit.s.sol --sig "deploy()" --fork-url $(RPC) --sender $(SENDER)
+
+.PHONY: deploy-herit
+deploy-herit: ## Deploy gate, registry, vault, claim manager, attestor, and re-grant the ENS roles
+	forge script script/DeployHerit.s.sol --sig "deploy()" $(BROADCAST)
+
+.PHONY: check-herit
+check-herit: check-ATTESTOR ## Walk the whole ring and assert every pair agrees (needs ATTESTOR)
+	forge script script/DeployHerit.s.sol --sig "check(address)" $(ATTESTOR) $(READONLY)
+
 ##@ Not written yet — targets land with their scripts
 
 # Kept here so the command shape is decided once, in one place, rather than rediscovered on
 # the day. Each target fails with a pointer until its script exists.
 
-.PHONY: deploy-herit
-deploy-herit: ## Checkpoint 8: deploy HeritVault, HeritRegistry, ClaimManager, LivenessAttestor
-	@test -f script/DeployHerit.s.sol || { echo "script/DeployHerit.s.sol does not exist yet (Checkpoint 8)"; exit 1; }
-	forge script script/DeployHerit.s.sol --sig "deploy()" $(BROADCAST)
-
 .PHONY: setup-estate
-setup-estate: ## Checkpoint 8: open one estate and register its heirs
-	@test -f script/SetupEstate.s.sol || { echo "script/SetupEstate.s.sol does not exist yet (Checkpoint 8)"; exit 1; }
+setup-estate: ## Checkpoint 9.6: open one estate and register its heirs
+	@test -f script/SetupEstate.s.sol || { echo "script/SetupEstate.s.sol does not exist yet (Checkpoint 9.6)"; exit 1; }
 	forge script script/SetupEstate.s.sol --sig "run()" $(BROADCAST)
 
 .PHONY: run-demo
