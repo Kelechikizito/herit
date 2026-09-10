@@ -169,6 +169,35 @@ provenance. The gate's `I_HERIT_REGISTRY` is the deployer EOA for now, which is 
 
 `make check-checkpoint-5 GATE=0xD9431E68…E947` re-runs all three read-only checks.
 
+### Checkpoint 9.5 — the five Herit contracts
+
+Deployed as one nonce sequence by `script/DeployHerit.s.sol`. All five hold each other as
+`immutable` constructor arguments, so they are only ever replaced as a set — pairing an address
+here with one from an earlier deployment gives a ring whose halves do not recognise each other.
+
+All verified on Sepolia Etherscan.
+
+| Contract | Address | Transaction |
+|---|---|---|
+| `AccessControlGate` | `0xA86e42C7250fec7C29cfA09584847B0B24C63103` | `0x1e245e76bbeb485c4eeabd60b84299f0116b36cb66db8ac481321487640aaa6d` |
+| `HeritRegistry` | `0xae63470A513d3488a42cd877b7ec42f861b76207` | `0x091ba870b189e85ab312f8ca81cdd49bd1c8c611a1865d751b9a0c353153172c` |
+| `HeritVault` | `0xC7EBa4BD6CE4c4d42C69e4Da8498911c57dae0BA` | `0xe82ad5a48808e0fc8ded8f6e4e0836c5eb0e744f749168d9ca079319964d3ee5` |
+| `ClaimManager` | `0xeC3692EA195EecE5370Ea781208cD98d8DBD081c` | `0x9b0f654433f40cda519293ca11db6d3a73122fa89236e68b9ac5ca6c5674453a` |
+| `LivenessAttestor` | `0x6Ffe62994e64c0617f4bdfD2c81C8B439324366C` | `0xb1b039b8f7303764c3e2026c9223d8c9fa556578d0aea42c27cd24a4298462f0` |
+
+This gate supersedes Checkpoint 5's `0xD9431E68…E947`, which pointed `I_HERIT_REGISTRY` at the
+deployer EOA. Registry A and the resolver are unchanged; the deploy re-ran their two role grants
+against the new gate.
+
+`LivenessAttestor.I_SIGNER` is `0x93cb39747b7390570c5Fa8366F6CD41e4C7940b0`, the backend's
+attestor EOA. It is `immutable` — rotating that key means redeploying all five.
+
+`make check-herit ATTESTOR=0x6Ffe62994e64c0617f4bdfD2c81C8B439324366C` walks the ring and
+asserts every pair agrees. Passing as of this deployment.
+
+The frontend's copy of these addresses lives in `frontend/lib/contracts/addresses.ts`, and its
+ABIs are generated from `out/` by `npm run abi`. Both need updating on any redeploy.
+
 ### The Checkpoint 5 walkthrough, on-chain
 
 One estate opened by hand through the gate, to prove the mechanic before anything was built on
