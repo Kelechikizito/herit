@@ -51,11 +51,12 @@ contract HeritRegistry is ReentrancyGuard, IHeritRegistry {
     ///      The cap is what keeps `recordHeir`'s cross-check bounded.
     uint256 public constant MAX_OVERRIDE_TOKENS = 10;
 
-    //  TO-DO: SYNC THE TIMES WITH THE FRONTEND LATER
-    uint64 private constant MIN_CHECK_IN_INTERVAL = 1 minutes;
-    uint64 private constant MAX_CHECK_IN_INTERVAL = 365 days;
-    uint64 private constant MIN_GRACE_DURATION = 1 minutes;
-    uint64 private constant MAX_GRACE_DURATION = 90 days;
+    /// @dev The ends of the two ranges the setup screen offers, in `frontend/lib/estate/presets.ts`.
+    ///      Public so the form can read them instead of keeping its own copy that drifts.
+    uint64 public constant MIN_CHECK_IN_INTERVAL = 2 minutes;
+    uint64 public constant MAX_CHECK_IN_INTERVAL = 90 days;
+    uint64 public constant MIN_GRACE_DURATION = 1 minutes;
+    uint64 public constant MAX_GRACE_DURATION = 14 days;
 
     mapping(uint256 estateId => Estate estate) private s_estates;
 
