@@ -26,6 +26,11 @@ USER_REGISTRY_IMPL  := 0x47B442d0CF617c41CAbAFf5f02f44DD1e5f72546
 BROADCAST := --rpc-url $(RPC) --account $(ACCOUNT) --sender $(SENDER) --broadcast
 READONLY  := --rpc-url $(RPC) --sender $(SENDER)
 
+# Etherscan verification. The key lives in .env and the alias is mapped in foundry.toml's
+# [etherscan] section, so --verify needs no key on the command line. Kept separate from
+# BROADCAST because only the targets that deploy contracts have anything to verify.
+VERIFY    := --verify
+
 .DEFAULT_GOAL := help
 
 # Fails with a readable message when a required address is missing, instead of sending a
@@ -183,7 +188,7 @@ predict-resolver: ## The address deploy-resolver will produce, before spending a
 # HERIT_ATTESTOR_SIGNER: the backend's attestor address from Checkpoint 10. It is immutable
 # on LivenessAttestor once deployed, so a wrong one means redeploying all five. Export it,
 # or override on the command line: make deploy-herit HERIT_ATTESTOR_SIGNER=0x...
-export HERIT_ATTESTOR_SIGNER
+# export HERIT_ATTESTOR_SIGNER
 
 .PHONY: predict-herit
 predict-herit: ## The five addresses deploy-herit will produce, before spending anything
@@ -195,7 +200,15 @@ deploy-herit-dry: ## Run the whole deployment against a fork, free, before payin
 
 .PHONY: deploy-herit
 deploy-herit: ## Deploy gate, registry, vault, claim manager, attestor, and re-grant the ENS roles
-	forge script script/DeployHerit.s.sol --sig "deploy()" $(BROADCAST)
+	forge script script/DeployHerit.s.sol --sig "deploy()" $(BROADCAST) $(VERIFY)
+
+# Verification runs after the transactions land, so a failure here leaves five deployed but
+# unverified contracts — nothing to redeploy, just re-run this. Reads the addresses out of the
+# broadcast log, so it needs no arguments.
+.PHONY: verify-herit
+verify-herit: ## Re-submit the five to Etherscan if --verify failed during deploy-herit
+	forge script script/DeployHerit.s.sol --sig "deploy()" --rpc-url $(RPC) --sender $(SENDER) \
+		--verify --resume
 
 .PHONY: check-herit
 check-herit: check-ATTESTOR ## Walk the whole ring and assert every pair agrees (needs ATTESTOR)

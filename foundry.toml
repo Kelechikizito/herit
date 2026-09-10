@@ -14,4 +14,9 @@ remappings = [
 sepolia_eth = "${ETH_SEPOLIA_RPC_URL}"
 worldchain_sepolia = "${WORLDCHAIN_SEPOLIA_RPC_URL}"
 
+# Etherscan v2 (one key, chain selected by id). Consumed by `--verify` on the deploy targets
+# and by `make verify-herit`. The key comes from .env, which Foundry loads automatically.
+[etherscan]
+sepolia_eth = { key = "${ETHERSCAN_API_KEY}", chain = 11155111 }
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
