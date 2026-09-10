@@ -4,6 +4,7 @@ import { Blob, DotTrail, Ring, Sparkle, Squiggle, Star } from "@/components/ui/d
 import { ArrowRightIcon, CheckIcon } from "@/components/ui/icons";
 import { IconCircle } from "@/components/ui/icon-circle";
 import { Reveal } from "@/components/ui/reveal";
+import { ConnectCta } from "@/components/wallet/connect-cta";
 import { HERO_TRUST_POINTS } from "@/lib/content/landing";
 
 export function Hero() {
@@ -41,10 +42,10 @@ export function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/setup" className="btn btn-pill">
+            <ConnectCta href="/setup" className="btn btn-pill">
               open an estate
               <ArrowRightIcon size={16} />
-            </Link>
+            </ConnectCta>
             <Link href="/dashboard" className="btn btn-ghost btn-pill">
               see a live estate
             </Link>

@@ -5,7 +5,13 @@ import { PanelCard, PanelList } from "@/components/ui/panel-card";
 import { type Estate, bpsToPercent, coHeirs, fullName } from "@/lib/estate";
 
 /** The other heirs named under the same estate, and where each of their claims stands. */
-export function CoHeirsCard({ estate, heirLabel }: { estate: Estate; heirLabel: string }) {
+export function CoHeirsCard({
+  estate,
+  heirLabel,
+}: {
+  estate: Estate;
+  heirLabel: string;
+}) {
   return (
     <PanelCard
       title="co-heirs"

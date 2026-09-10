@@ -271,6 +271,32 @@
     background: var(--color-yellow);
   }
 
+  /* A row in the wallet dropdown. Flat by design — the menu card already carries the shadow. */
+  .menu-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
+    color: var(--color-ink);
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color 0.12s ease,
+      border-color 0.12s ease;
+  }
+
+  .menu-row:hover {
+    background: var(--color-cream);
+    border-color: var(--color-ink);
+  }
+
   .mono {
     font-variant-numeric: tabular-nums;
     font-family: ui-monospace, "SFMono-Regular", "Menlo", monospace;

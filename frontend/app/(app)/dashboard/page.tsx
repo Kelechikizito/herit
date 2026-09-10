@@ -5,11 +5,14 @@ import { ProofOfLifeCard } from "@/components/dashboard/proof-of-life-card";
 import { VaultCard } from "@/components/dashboard/vault-card";
 import { StatusPill } from "@/components/estate/status-pill";
 import { PageHeader } from "@/components/layout/page-header";
-import { fullName, shortAddress } from "@/lib/estate";
-import { SAMPLE_ESTATE } from "@/lib/fixtures/estate";
+import { fullName, nowSeconds, shortAddress } from "@/lib/estate";
+import { sampleEstate } from "@/lib/fixtures/estate";
 
 export default function DashboardPage() {
-  const estate = SAMPLE_ESTATE;
+  // One timestamp for the whole render, so no two cards disagree about what second it is. The
+  // client ticks on from here via `useNow`.
+  const now = nowSeconds();
+  const estate = sampleEstate(now);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -28,7 +31,7 @@ export default function DashboardPage() {
       </PageHeader>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_1fr]">
-        <ProofOfLifeCard estate={estate} />
+        <ProofOfLifeCard estate={estate} now={now} />
 
         <div className="space-y-6">
           <EstateSummaryCard estate={estate} />

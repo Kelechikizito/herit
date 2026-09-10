@@ -5,11 +5,12 @@ import { CardHeading } from "@/components/ui/card-heading";
 import { FormField } from "@/components/ui/form-field";
 import { HeirIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
 import { bpsToPercent, fullName } from "@/lib/estate";
-import { SAMPLE_ESTATE } from "@/lib/fixtures/estate";
+import { sampleEstate } from "@/lib/fixtures/estate";
 
 /** Step three: the heir list being drafted, and the form that appends to it. */
 export function HeirsStep() {
-  const estate = SAMPLE_ESTATE;
+  // No clock on this screen, so the frozen design epoch keeps server and client identical.
+  const estate = sampleEstate();
 
   return (
     <div>

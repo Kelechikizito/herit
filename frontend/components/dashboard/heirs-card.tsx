@@ -5,7 +5,7 @@ import { PlusIcon } from "@/components/ui/icons";
 import { PanelCard, PanelList } from "@/components/ui/panel-card";
 import type { Estate } from "@/lib/estate";
 
-/** The heir list, read-only here — editing lives on `/heirs`. */
+/** The heir list, read-only here; editing lives on `/heirs`. */
 export function HeirsCard({ estate }: { estate: Estate }) {
   return (
     <PanelCard
