@@ -1,3 +1,5 @@
+import type { RpContext } from "@worldcoin/idkit";
+
 /**
  * The World ID Selfie Check vocabulary.
  *
@@ -18,18 +20,46 @@ export type SelfieCheckPurpose =
 
 export const SELFIE_CHECK_STAGES: readonly { label: string; detail: string }[] =
   [
-    { label: "opening World App", detail: "MiniKit verify command raised" },
+    { label: "opening World App", detail: "signed request raised with IDKit" },
     { label: "capturing liveness", detail: "orb or device selfie check" },
     { label: "verifying proof", detail: "World ID Cloud Verify" },
     {
       label: "signing attestation",
       detail: "EIP-712, scoped to action + nonce",
     },
-    { label: "submitting to Sepolia", detail: "LivenessAttestor.verify()" },
+    { label: "ready to submit", detail: "LivenessAttestor.checkIn / claim" },
   ];
 
-/** How long each simulated stage holds, in milliseconds. */
-export const STAGE_MS = 620;
+/** The three environments a World ID app can be pointed at. */
+export const WLD_ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
+export type WldEnvironment = (typeof WLD_ENVIRONMENTS)[number];
+
+/** What `POST /api/worldid/sign` returns. */
+export type SignResponse = {
+  app_id: `app_${string}`;
+  action: string;
+  environment: WldEnvironment;
+  rp_context: RpContext;
+};
+
+/**
+ * What `POST /api/worldid/verify` returns.
+ *
+ * The three uint256 fields are decimal strings — they do not survive JSON as numbers. Convert
+ * with `BigInt(...)` on the way to the wallet.
+ */
+export type SignedAttestation = {
+  attestation: {
+    estateId: string;
+    subject: `0x${string}`;
+    action: `0x${string}`;
+    heirLabelhash: string;
+    commitment: `0x${string}`;
+    nonce: string;
+    expiry: string;
+  };
+  signature: `0x${string}`;
+};
 
 /**
  * The World ID action, which scopes the nullifier. One per estate, shared by both purposes.
@@ -43,21 +73,6 @@ export const STAGE_MS = 620;
  */
 export function actionString(purpose: SelfieCheckPurpose): string {
   return `herit:${purpose.estateLabel}`;
-}
-
-/**
- * A fresh attestation nonce: a full 256-bit value, 0x-prefixed.
- *
- * `LivenessAttestor` keys its used-nonce mapping on a `uint256` shared by every estate and every
- * user, so this has to be wide enough that two people never collide — a collision reverts the
- * second person's check-in with `NonceUsed`. `BigInt(randomNonce())` is what goes into the
- * attestation. Browser and Node both provide `crypto.getRandomValues`; `Math.random` is not a
- * source of randomness anything should rely on.
- */
-export function randomNonce(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
 /** 32 bytes do not fit in the modal. Enough of both ends to read it off a screen recording. */

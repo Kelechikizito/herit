@@ -100,13 +100,31 @@ differs. N₁ ≠ N₂, so the two commitments differ, so `s_claimUsed[estateId]
 fires, and `LivenessAttestor.claim` pays them twice. The sybil gate that the whole World track
 pitch rests on is off.
 
-Fix it in `lib/selfie-check.ts`:
+**And there is a second failure with the same shape, one level up.** `LivenessAttestor.claim`
+rejects a grantor claiming from their own estate by comparing the claim commitment against the
+one the first check-in bound:
 
-```ts
-claim    ->  `claim:${estateLabel}`
+```solidity
+if (s_estateCommitment[a.estateId] == a.commitment) revert WrongHuman;
 ```
 
-and pass the heir label as the **signal** instead — `selfieCheckLegacy({ signal: heirLabel })`.
+With `checkin:alice` and `claim:alice` as separate actions those two commitments come from two
+different nullifiers, so that comparison can never be true — even for the same person. The check
+is dead code. So the action is **one namespace per estate, shared by both purposes**:
+
+```ts
+export function actionString(purpose: SelfieCheckPurpose): string {
+  return `herit:${purpose.estateLabel}`;
+}
+```
+
+Same human, same estate, same nullifier, whichever thing they are doing. Nothing on-chain
+changes: the attestation's own `bytes32 action` still separates `checkIn` from `claim`, and
+`checkIn` independently requires `subject == getOwner(estateId)`. The only thing given up is
+unlinkability between a grantor's check-in and a claim on the same estate — which is precisely
+the link the check needs. **Done — this is what `lib/selfie-check.ts` now does.**
+
+The heir label passes as the **signal** instead — `selfieCheckLegacy({ signal: heirLabel })`.
 The signal is folded into the proof and comes back as `signal_hash`; it binds the proof to one
 heir without opening a second nullifier namespace. The heir is already carried to the contract
 as `heirLabelhash` in the attestation, so nothing on-chain changes.
@@ -151,8 +169,13 @@ list you register once. Two ways out, pick one and write it down:
 - **Create on the fly.** Pass `action_description` alongside the action; the Portal accepts
   actions it has not seen. Right for a real product.
 - **Pre-register the demo estate.** For a hackathon with one estate on stage, create
-  `checkin:<demo>` and `claim:<demo>` in *both* environments by hand and be done. Fewer moving
-  parts on demo day. Recommended.
+  `herit:<demo-label>` in *both* environments by hand and be done. Fewer moving parts on demo day.
+  Recommended.
+
+  **One action, not two.** Since §2 collapsed check-in and claim into a single per-estate
+  namespace, there is nothing called `checkin:<demo>` or `claim:<demo>` any more. Registering
+  those instead is a silent failure: the widget asks for `herit:<demo-label>`, the Portal has
+  never heard of it, and you get zero proofs and what looks exactly like a frontend bug.
 
 ---
 
@@ -208,11 +231,35 @@ const sig = signRequest({ signingKeyHex: process.env.RP_SIGNING_KEY!, action, tt
 // -> { sig, nonce, createdAt, expiresAt }
 ```
 
-then shape it into the `rp_context` IDKit wants:
+**Verified against `@worldcoin/idkit@4.2.3`.** `@worldcoin/idkit/signing` re-exports from
+`@worldcoin/idkit-core/signing`, which re-exports `@worldcoin/idkit-server`:
+
+```ts
+signRequest(params: SignRequestParams): RpSignature
+  SignRequestParams = { signingKeyHex: string; action?: string; ttl?: number }
+  RpSignature       = { sig: string; nonce: string; createdAt: number; expiresAt: number }
+```
+
+then shape it into the `rp_context` IDKit wants. **This remap is load-bearing** — four of the
+five names differ and `rp_id` is not in the signature at all, so passing `sig` straight through
+gives the widget the right values under the wrong keys, with nothing type-checking it across the
+network boundary:
+
+| `signRequest` returns | `RpContext` wants |
+|---|---|
+| `sig` | `signature` |
+| `createdAt` | `created_at` |
+| `expiresAt` | `expires_at` |
+| `nonce` | `nonce` |
+| — | `rp_id`, from the environment |
 
 ```ts
 { rp_id, nonce: sig.nonce, created_at: sig.createdAt, expires_at: sig.expiresAt, signature: sig.sig }
 ```
+
+`environment` is **not** a free string on the widget: it is `"production" | "staging" | "sandbox"`.
+Validate it in the route and export the union, so the route's check and the widget's expectation
+cannot drift. `lib/selfie-check.ts` exports `WLD_ENVIRONMENTS` for this.
 
 Three rules:
 
@@ -250,7 +297,16 @@ import { IDKitRequestWidget, selfieCheckLegacy } from "@worldcoin/idkit";
 />
 ```
 
-Four v4 things that break if you carry a v3 habit across:
+**The backend call goes in `handleVerify`, not `onSuccess`.** The real prop list is
+`{ open, onOpenChange, handleVerify?, onSuccess, onError?, autoClose?, language? }`, and
+`handleVerify: (result) => MaybePromise<void>` runs *before* success. Throwing there rejects the
+verification inside IDKit, so a proof your own server refuses never reaches the wallet. Put the
+`/api/worldid/verify` call there; `onSuccess` is required by the type but only needs to close up.
+
+**The widget cannot mount before the sign route returns,** because `rp_context` has to exist when
+it renders. That is the two-phase shape of the modal, and it is also stage 1.
+
+Five v4 things that break if you carry a v3 habit across:
 
 - The widget is **controlled**. It takes `open` and `onOpenChange`. There is no function-as-child
   render prop; if you write one the widget simply never opens.
@@ -321,12 +377,22 @@ not the World ID action string from §2. Read §2 again if that sentence felt fi
 Every failure below must reach the modal as a sentence, not as a spinner that never stops. The
 existing dialog has no error state at all — that is the other half of the work in §6.
 
-| What happened | What to say |
+**Use the real codes.** `IDKitErrorCode` is a 25-member union and it does not contain
+`invalid_proof` or `invalid_action` — both of those are prose, not API. Switch on these:
+
+| Code(s) | What to say |
 |---|---|
-| Selfie Check flag is off for the app | "Selfie Check is not enabled for this app" — it is a Portal problem, not a retry. |
-| Action missing in this environment | Name the environment. This is the staging/production mismatch and it looks like nothing happening. |
-| `invalid_proof` from the verifier | Retryable once; then say the proof was rejected. |
-| Attestation expired before the tx landed | Offer the run again. Thirty minutes is generous but a demo can stall. |
+| `user_rejected`, `verification_rejected` | "the check was declined in World App" |
+| `credential_unavailable`, `feature_unavailable`, `world_id_3_not_available` | "Selfie Check is not enabled for this app" — a Portal setting, not a retry |
+| `nullifier_replayed` | "this human has already used a check here" — the sybil case, and the one worth showing at judging |
+| `max_verifications_reached` | no verifications left for this action |
+| `invalid_rp_signature`, `rp_signature_expired`, `timestamp_too_old` | the sign route's TTL lapsed while the user found their phone — start again |
+| `unknown_rp`, `inactive_rp` | name the environment: this is the staging/production mismatch, and it looks like nothing happening |
+| `invalid_network` | wrong network for this environment |
+| `connection_failed` | could not reach World App |
+
+A proof your own `/api/worldid/verify` route rejects never reaches `onError` — it surfaces as the
+thrown error from `handleVerify`, so the modal needs both paths.
 
 For JS failures, `onError`'s second argument is a `debugReport` (also `getDebugReport()`), and it
 carries the transport, the `request_id`, and the request/response payloads. Keep it — log it,
@@ -336,8 +402,29 @@ show the `request_id` in the modal — and make sure nothing in that log path ca
 
 ## 9. The nullifier ledger
 
-World's rule is `UNIQUE (action, nullifier)`, column type `NUMERIC(78, 0)`, reject the duplicate
-on insert. Do not "helpfully" upsert — the duplicate is the attack.
+World's usual rule is `UNIQUE (action, nullifier)` — reject the duplicate on insert, never
+"helpfully" upsert, because the duplicate is the attack.
+
+**That rule is wrong here, and applying it literally locks every grantor out after one check-in.**
+Check-in is deliberately recurring: the same human proves liveness every interval against the same
+action, so they produce the same nullifier every time, by design. A uniqueness constraint would
+accept the first check-in and refuse every one after it.
+
+The ledger mirrors the two rules the contract actually enforces, which are not the same rule:
+
+| On-chain | Off-chain mirror |
+|---|---|
+| `s_estateCommitment[estateId]` — the first check-in binds the estate to one human; that human repeats forever | estate → nullifier, first write wins. A *different* nullifier is rejected — the stolen-key case. |
+| `s_claimUsed[estateId][commitment]` — one human, one claim | `(estateId, nullifier)` unique, among claims only. |
+
+**Done** — `frontend/lib/server/nullifier-ledger.ts`, a JSON file under `frontend/.data/`
+(gitignored), called from the verify route before the attestation is signed. Writes are serialized
+through a promise chain and land via write-then-rename, so two requests in the same second cannot
+lose one another's write and a crash mid-write cannot truncate the file.
+
+It **fails open**: if the file cannot be read or written the check is skipped rather than blocking
+a legitimate user. The contract still refuses the duplicate — the only thing lost is the early
+rejection, and a demo that cannot write to disk should still demo.
 
 Herit has an unusual advantage here: **the chain is already that table.**
 `s_estateCommitment[estateId]` is a one-writer-wins binding of an estate to a human, and
@@ -394,3 +481,46 @@ warning Checkpoint 9 carried, for the same reason.
 
 Checkpoint 11 is the wallet: taking the attestation this returns and sending it to
 `LivenessAttestor` from the browser. Nothing in this checkpoint should know what a wallet is.
+
+---
+
+## 12. Where this actually stands
+
+Written and passing `npm run lint`, `npx tsc --noEmit` and `npm run build`:
+
+| Piece | State |
+|---|---|
+| §2 the action fix | done — `herit:${estateLabel}`, one namespace per estate |
+| the nonce | done — `randomNonce` deleted from the client; the verify route mints a full `uint256` |
+| §5 `POST /api/worldid/sign` | done |
+| §6 the widget | done — real events drive the five stages, with an error state |
+| §7 `POST /api/worldid/verify` | done, with one caveat below |
+| §9 the nullifier ledger | done |
+| §3 the Portal | `app_mode` confirmed `external`. Selfie Check flag and the actions still open. |
+
+**The caveat in §7.** `looksVerified()` is a guess at the success shape, because no real 200 has
+ever been read. It fails closed, so a wrong guess rejects good proofs rather than accepting bad
+ones. Confirm it against the first real response and tighten it.
+
+**The nonce is the server's to mint.** `randomNonce` was deleted rather than fixed: a nonce
+generator sitting in shared client code invites someone to use it for the real attestation, and
+only the backend that signs may choose one.
+
+### The install trap
+
+`npm install` will not repair a package whose extraction was interrupted. viem's directory looked
+valid — `package.json` present, `_esm` complete at 1,473 files — while `_types` held 37 of ~2,900,
+so `exports["."].types` pointed at a file that did not exist. npm saw the package as satisfied and
+skipped it.
+
+The symptom splits by tool, which is what makes it confusing:
+
+| | Resolves via | Result |
+|---|---|---|
+| `tsc --noEmit` | `exports.types` → `_types/` | `TS7016: Could not find a declaration file for module 'viem'` |
+| `next build` | `exports.import` → `_esm/` | passes — never mentions viem |
+
+`rm -rf node_modules/viem && npm install`, or `npm ci`. And do not trust a green `next build`
+alone: run `npx tsc --noEmit` too, because webpack never reads the type half. Both of the real
+bugs in the widget wiring — a `string` where the union was wanted, and an error code that does
+not exist — were invisible until viem's declarations landed.

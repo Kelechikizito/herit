@@ -1,7 +1,13 @@
 import { signRequest } from "@worldcoin/idkit/signing";
 import type { RpContext } from "@worldcoin/idkit";
 
-import { actionString, type SelfieCheckPurpose } from "@/lib/selfie-check";
+import {
+  actionString,
+  WLD_ENVIRONMENTS,
+  type SelfieCheckPurpose,
+  type SignResponse,
+  type WldEnvironment,
+} from "@/lib/selfie-check";
 
 /**
  * POST /api/worldid/sign
@@ -23,16 +29,6 @@ const RP_SIGNATURE_TTL_SECONDS = 120;
 
 /** An ENS label, since the estate label is what scopes the World ID nullifier. */
 const LABEL_PATTERN = /^[a-z0-9-]{1,63}$/;
-
-const ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
-type WldEnvironment = (typeof ENVIRONMENTS)[number];
-
-type SignResponse = {
-  app_id: `app_${string}`;
-  action: string;
-  environment: WldEnvironment;
-  rp_context: RpContext;
-};
 
 /** A bad request from the caller. Its message is safe to return. */
 class BadRequestError extends Error {}
@@ -77,7 +73,7 @@ export async function POST(request: Request) {
     }
     if (!isEnvironment(environment)) {
       throw new ConfigError(
-        `NEXT_PUBLIC_WLD_ENVIRONMENT must be one of ${ENVIRONMENTS.join(", ")}`,
+        `NEXT_PUBLIC_WLD_ENVIRONMENT must be one of ${WLD_ENVIRONMENTS.join(", ")}`,
       );
     }
     if (!/^(0x)?[0-9a-fA-F]{64}$/.test(signingKeyHex)) {
@@ -143,7 +139,7 @@ function required(key: string, value: string | undefined): string {
 }
 
 function isEnvironment(value: string): value is WldEnvironment {
-  return (ENVIRONMENTS as readonly string[]).includes(value);
+  return (WLD_ENVIRONMENTS as readonly string[]).includes(value);
 }
 
 /**

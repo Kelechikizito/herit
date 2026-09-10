@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# demo nullifier ledger — see lib/server/nullifier-ledger.ts
+.data/
