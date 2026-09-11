@@ -193,6 +193,34 @@ export function formatDuration(seconds: number): string {
   return plural(s, "sec");
 }
 
+/**
+ * The deadline a list row shows, from the timers last read and the local clock.
+ *
+ * Like everything else here it draws a clock rather than deciding one: a zero reads as "confirming
+ * on sepolia…" and waits for `statusOf` to agree, instead of announcing a transition itself.
+ */
+export function describeDeadline(
+  status: EstateStatus,
+  clock: EstateClock,
+  now: number,
+): { main: string; sub: string } {
+  if (status === "unlocked") return { main: "unlocked", sub: "heirs can claim" };
+  if (clock.checkInInterval === 0) return { main: "—", sub: "timers not set" };
+
+  const target = countdownTarget(status, clock);
+  if (target === null) return { main: "—", sub: "clock not started" };
+
+  const remaining = secondsUntil(target, now);
+  if (status === "grace") {
+    return remaining > 0
+      ? { main: formatCountdown(remaining), sub: "until heirs unlock" }
+      : { main: "lapsed", sub: "confirming on sepolia…" };
+  }
+  return remaining > 0
+    ? { main: formatCountdown(remaining), sub: "until the window closes" }
+    : { main: "closed", sub: "confirming on sepolia…" };
+}
+
 /** How long ago something happened, coarsely: "2 days ago". */
 export function formatAgo(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));

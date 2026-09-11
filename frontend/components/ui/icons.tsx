@@ -173,6 +173,15 @@ export function AlertIcon({ className, size = 22 }: IconProps) {
   );
 }
 
+/** Row disclosure. Rotated by the caller to point up when its row is open. */
+export function ChevronDownIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg className={className} {...base(size)}>
+      <path d="M6 9.5l6 6 6-6" />
+    </svg>
+  );
+}
+
 export function WalletIcon({ className, size = 18 }: IconProps) {
   return (
     <svg className={className} {...base(size)}>

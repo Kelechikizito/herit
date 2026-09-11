@@ -5,6 +5,7 @@ export type NavLink = { href: string; label: string };
 export const MARKETING_LINKS: readonly NavLink[] = [
   { href: "/#how", label: "how it works" },
   { href: "/#clock", label: "the clock" },
+  { href: "/#estates", label: "live estates" },
   { href: "/#tracks", label: "tracks" },
 ];
 

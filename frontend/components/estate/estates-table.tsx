@@ -9,12 +9,10 @@ import {
   type EstateOverview,
   type OwnedEstate,
   bpsToPercent,
-  countdownTarget,
+  describeDeadline,
   estateHref,
-  formatCountdown,
   formatTokenAmount,
   fullName,
-  secondsUntil,
 } from "@/lib/estate";
 import { useEstateOverviews } from "@/lib/estate/use-estate-overviews";
 import { useNow } from "@/lib/estate/use-now";
@@ -94,7 +92,7 @@ function Table({
       <PanelList>
         {overviews.map((estate) => {
           const current = estate.estateId === selected.estateId;
-          const deadline = describeDeadline(estate, tick);
+          const deadline = describeDeadline(estate.status, estate.clock, tick);
 
           return (
             <li key={estate.label}>
@@ -143,29 +141,6 @@ function Cell({ main, sub, mono = false }: { main: string; sub: string; mono?: b
       <span className="block truncate text-[0.7rem] text-muted">{sub}</span>
     </span>
   );
-}
-
-/**
- * The row's countdown, from the last read timers and the local clock. Like the proof-of-life ring,
- * it never decides a deadline has passed: status comes from the chain, and a zero here just waits
- * for the next read to catch up.
- */
-function describeDeadline(estate: EstateOverview, now: number): { main: string; sub: string } {
-  if (estate.status === "unlocked") return { main: "unlocked", sub: "heirs can claim" };
-  if (estate.clock.checkInInterval === 0) return { main: "—", sub: "timers not set" };
-
-  const target = countdownTarget(estate.status, estate.clock);
-  if (target === null) return { main: "—", sub: "clock not started" };
-
-  const remaining = secondsUntil(target, now);
-  if (estate.status === "grace") {
-    return remaining > 0
-      ? { main: formatCountdown(remaining), sub: "until heirs unlock" }
-      : { main: "lapsed", sub: "confirming on sepolia…" };
-  }
-  return remaining > 0
-    ? { main: formatCountdown(remaining), sub: "until the window closes" }
-    : { main: "closed", sub: "confirming on sepolia…" };
 }
 
 function plural(n: number, unit: string): string {

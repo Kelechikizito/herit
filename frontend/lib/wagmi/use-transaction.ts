@@ -167,3 +167,8 @@ export function pendingLabel(phase: TxPhase | undefined): string | undefined {
 export function explorerTxUrl(hash: Hash): string {
   return `https://sepolia.etherscan.io/tx/${hash}`;
 }
+
+/** Takes a plain string, like `shortAddress`, so a caller need not narrow to `Address` first. */
+export function explorerAddressUrl(address: string): string {
+  return `https://sepolia.etherscan.io/address/${address}`;
+}
