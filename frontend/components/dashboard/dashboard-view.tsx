@@ -6,7 +6,7 @@ import { HeirsCard } from "@/components/dashboard/heirs-card";
 import { ProofOfLifeCard } from "@/components/dashboard/proof-of-life-card";
 import { VaultCard } from "@/components/dashboard/vault-card";
 import { Loaded } from "@/components/estate/card-state";
-import { EntrySwitcher } from "@/components/estate/entry-switcher";
+import { ESTATE_DETAILS_ID, EstatesTable } from "@/components/estate/estates-table";
 import { SelectionNotice } from "@/components/estate/selection-notice";
 import { StatusPill } from "@/components/estate/status-pill";
 import { PageHeader } from "@/components/layout/page-header";
@@ -50,28 +50,39 @@ export function DashboardView({
     );
   }
 
-  return <Dashboard now={now} selected={resolved.selected} entries={resolved.entries} />;
+  return (
+    <>
+      <PageHeader
+        eyebrow="grantor dashboard"
+        title="your estates"
+        description="every estate this wallet opened and still owns. the latest opens below — choose another from the table."
+      />
+
+      <EstatesTable
+        entries={resolved.entries}
+        selected={resolved.selected}
+        pathname="/dashboard"
+        now={now}
+      />
+
+      {/* Keyed per estate, so a card's memory of the last status never carries into another estate. */}
+      <Dashboard key={resolved.selected.label} now={now} selected={resolved.selected} />
+    </>
+  );
 }
 
 /** One estate's dashboard. Split out so its reads only start once an estate is chosen. */
-function Dashboard({
-  now,
-  selected,
-  entries,
-}: {
-  now: number;
-  selected: OwnedEstate;
-  entries: readonly OwnedEstate[];
-}) {
+function Dashboard({ now, selected }: { now: number; selected: OwnedEstate }) {
   const estate = useEstate(selected.estateId, selected.label);
   const vault = useVault(selected.estateId);
   const heirs = useHeirs(selected.estateId, selected.label, vault);
   const activity = useEstateActivity(selected.estateId);
 
   return (
-    <>
+    <section id={ESTATE_DETAILS_ID} className="mt-12 scroll-mt-28">
       <PageHeader
-        eyebrow="grantor dashboard"
+        level={2}
+        eyebrow="viewing"
         title={fullName(selected)}
         mono
         description={
@@ -86,8 +97,6 @@ function Dashboard({
       >
         {estate.status === "ready" ? <StatusPill status={estate.data.status} /> : null}
       </PageHeader>
-
-      <EntrySwitcher label="your estates" links={entries.map(toLink)} current={toLink(selected)} />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_1fr]">
         <Loaded load={estate} title="proof of life">
@@ -126,6 +135,6 @@ function Dashboard({
           {([estate, heirs, vault]) => <VaultCard estate={estate} heirs={heirs} vault={vault} />}
         </Loaded>
       </div>
-    </>
+    </section>
   );
 }

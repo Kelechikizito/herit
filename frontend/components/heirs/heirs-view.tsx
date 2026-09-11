@@ -1,7 +1,7 @@
 "use client";
 
 import { Loaded } from "@/components/estate/card-state";
-import { EntrySwitcher } from "@/components/estate/entry-switcher";
+import { ESTATE_DETAILS_ID, EstatesTable } from "@/components/estate/estates-table";
 import { SelectionNotice } from "@/components/estate/selection-notice";
 import { AddHeirForm } from "@/components/heirs/add-heir-form";
 import { AllocationCard } from "@/components/heirs/allocation-card";
@@ -15,7 +15,7 @@ import { useVault } from "@/lib/estate/use-vault";
 
 const toLink = (estate: OwnedEstate) => estateLink("/heirs", estate);
 
-export function HeirsView({ requestedEstate }: { requestedEstate?: string }) {
+export function HeirsView({ now, requestedEstate }: { now: number; requestedEstate?: string }) {
   const resolved = useSelectedEstate(requestedEstate);
 
   if (resolved.kind !== "selected") {
@@ -29,29 +29,48 @@ export function HeirsView({ requestedEstate }: { requestedEstate?: string }) {
     );
   }
 
-  return <Heirs selected={resolved.selected} entries={resolved.entries} />;
+  return (
+    <>
+      <PageHeader
+        eyebrow="your estates"
+        title="heirs"
+        starFill="#C4B5FD"
+        starRotate={14}
+        description="every heir is a subname inside its estate's own ENSv2 registry, carrying a relationship record, a share in basis points, and a claim role that stays withheld until the estate unlocks."
+      />
+
+      <EstatesTable
+        entries={resolved.entries}
+        selected={resolved.selected}
+        pathname="/heirs"
+        now={now}
+      />
+
+      {/* Keyed per estate, so a half-filled heir form never carries into another estate. */}
+      <Heirs key={resolved.selected.label} selected={resolved.selected} />
+    </>
+  );
 }
 
 /**
  * One estate's heirs. The estate is read for its status alone — registering closes once it unlocks.
  * The vault is read only for its token list, which each heir's claimed flags are keyed by.
  */
-function Heirs({ selected, entries }: { selected: OwnedEstate; entries: readonly OwnedEstate[] }) {
+function Heirs({ selected }: { selected: OwnedEstate }) {
   const estate = useEstate(selected.estateId, selected.label);
   const vault = useVault(selected.estateId);
   const heirs = useHeirs(selected.estateId, selected.label, vault);
 
   return (
-    <>
+    <section id={ESTATE_DETAILS_ID} className="mt-12 scroll-mt-28">
       <PageHeader
-        eyebrow={fullName(selected)}
-        title="heirs"
+        level={2}
+        eyebrow="naming heirs for"
+        title={fullName(selected)}
+        mono
         starFill="#C4B5FD"
         starRotate={14}
-        description="every heir is a subname inside this estate's own ENSv2 registry, carrying a relationship record, a share in basis points, and a claim role that stays withheld until the estate unlocks."
       />
-
-      <EntrySwitcher label="your estates" links={entries.map(toLink)} current={toLink(selected)} />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_1fr] lg:items-start">
         <div className="space-y-6">
@@ -67,6 +86,6 @@ function Heirs({ selected, entries }: { selected: OwnedEstate; entries: readonly
           {([estate, heirs]) => <AddHeirForm estate={estate} heirs={heirs} />}
         </Loaded>
       </div>
-    </>
+    </section>
   );
 }

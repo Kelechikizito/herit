@@ -9,7 +9,7 @@ import type { Estate, EstateClock, EstateStatus } from "./types";
 
 const STATUS_BY_INDEX = ["active", "grace", "unlocked"] as const satisfies readonly EstateStatus[];
 
-function toEstateStatus(value: number): EstateStatus {
+export function toEstateStatus(value: number): EstateStatus {
   const status = STATUS_BY_INDEX[value];
   if (status === undefined) {
     throw new Error(`HeritRegistry returned an unknown Status: ${value}`);
@@ -24,7 +24,7 @@ export const POLL_MS = 12_000;
 const OVERDUE_POLL_MS = 3_000;
 
 /** `estateOf` as viem decodes it. */
-type EstateRecord = {
+export type EstateRecord = {
   lastCheckIn: bigint;
   checkInInterval: bigint;
   graceDuration: bigint;
@@ -68,7 +68,7 @@ export function useEstate(estateId: bigint, label: string): Load<Estate> {
   });
 }
 
-function toClock(record: EstateRecord): EstateClock {
+export function toClock(record: EstateRecord): EstateClock {
   return {
     lastCheckIn: Number(record.lastCheckIn),
     checkInInterval: Number(record.checkInInterval),

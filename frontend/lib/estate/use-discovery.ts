@@ -29,11 +29,13 @@ const NO_IDS: readonly bigint[] = [];
 const NO_SLOTS: readonly { estateId: bigint; heirLabelhash: bigint }[] = [];
 
 /**
- * Every estate `address` opened and still owns.
+ * Every estate `address` opened and still owns, newest first.
  *
  * `estatesOfGrantor` only records who opened an estate, and the name can be transferred after.
  * An id is kept only while registry A's `getOwner` still names `address`, which also drops an
  * expired name, since `getOwner` reads zero for one.
+ *
+ * The index only ever appends, and an id cannot be opened twice, so reversing it orders by opening.
  */
 export function useMyEstates(address: Address | undefined): Load<OwnedEstate[]> {
   const index = useReadContract({
@@ -76,7 +78,7 @@ export function useMyEstates(address: Address | undefined): Load<OwnedEstate[]> 
     const label = labelOf[i];
     return owner !== undefined && isAddressEqual(owner, grantor) && label ? [{ estateId, label }] : [];
   });
-  return ready(entries);
+  return ready(entries.reverse());
 }
 
 /**
@@ -129,7 +131,7 @@ export function useMyHeirSlots(address: Address | undefined): Load<HeirSlot[]> {
   return ready(entries);
 }
 
-/** The estate a grantor screen shows: `?estate=<label>` when given, otherwise the first found. */
+/** The estate a grantor screen shows: `?estate=<label>` when given, otherwise the latest opened. */
 export function useSelectedEstate(label: string | undefined): Resolved<OwnedEstate> {
   const wallet = useWallet();
   const discovery = useMyEstates(wallet.address);

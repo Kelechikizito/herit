@@ -105,6 +105,19 @@ export type OwnedEstate = {
   label: string;
 };
 
+/** One row of the estates table: enough to choose between estates, read for all of them at once. */
+export type EstateOverview = OwnedEstate & {
+  status: EstateStatus;
+  clock: EstateClock;
+  heirCount: number;
+  /** The sum of every heir's `defaultShareOf`. */
+  allocatedBps: number;
+  /** The vault's ETH balance for this estate. */
+  ethBalance: bigint;
+  /** ERC20s the vault lists for this estate, whether or not they still hold a balance. */
+  erc20Count: number;
+};
+
 /** One place the connected wallet is named as an heir: which estate, and which name inside it. */
 export type HeirSlot = {
   estateId: bigint;
