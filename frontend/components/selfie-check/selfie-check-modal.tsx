@@ -10,11 +10,13 @@ import { AlertIcon, CheckIcon, SelfieIcon, ShieldIcon } from "@/components/ui/ic
 import { IconCircle } from "@/components/ui/icon-circle";
 import {
   SELFIE_CHECK_STAGES,
+  SUBMIT_STAGE,
   shortNonce,
   type SelfieCheckPurpose,
   type SignedAttestation,
   type SignResponse,
 } from "@/lib/selfie-check";
+import { type TxState, explorerTxUrl, pendingLabel } from "@/lib/wagmi/use-transaction";
 import { useWallet } from "@/lib/wagmi/use-wallet";
 
 /**
@@ -27,7 +29,9 @@ import { useWallet } from "@/lib/wagmi/use-wallet";
  *   3. `POST /api/worldid/verify` — Cloud Verify, then an EIP-712 attestation.
  *
  * The attestation is handed to the caller, which sends the transaction. This component never
- * touches a wallet beyond reading the address the attestation must be bound to.
+ * touches a wallet beyond reading the address the attestation must be bound to — but when the
+ * caller passes that transaction's state back as `submission`, the modal stays open through the
+ * wallet prompt and the receipt instead of closing on a check that has not landed yet.
  */
 
 export type SelfieCheckProps = {
@@ -36,6 +40,11 @@ export type SelfieCheckProps = {
   onClose: () => void;
   /** Fired once, with the attestation the caller submits to `LivenessAttestor`. */
   onVerified?: (signed: SignedAttestation) => void;
+  /** The transaction `onVerified` started. Adds a sixth stage that tracks it to confirmation. */
+  submission?: TxState;
+  /** Sends the same attestation again after a failed submission. It stays valid until it expires. */
+  onResubmit?: (signed: SignedAttestation) => void;
+  /** The close button's label once everything has finished. */
   confirmLabel?: string;
 };
 
@@ -52,6 +61,8 @@ function SelfieCheckDialog({
   purpose,
   onClose,
   onVerified,
+  submission,
+  onResubmit,
   confirmLabel = "done",
 }: Omit<SelfieCheckProps, "open">) {
   const { address } = useWallet();
@@ -61,7 +72,15 @@ function SelfieCheckDialog({
   const [signed, setSigned] = useState<SignedAttestation | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const done = stage >= SELFIE_CHECK_STAGES.length;
+  const stages = submission ? [...SELFIE_CHECK_STAGES, SUBMIT_STAGE] : SELFIE_CHECK_STAGES;
+  // Past the five World ID stages: the attestation exists and has been handed over.
+  const verified = stage >= SELFIE_CHECK_STAGES.length;
+  const tx = verified ? submission : undefined;
+  const txFailed = tx?.phase === "error";
+  const current = tx?.phase === "success" ? stages.length : stage;
+  const done = current >= stages.length;
+  const failure = error ?? (txFailed ? (tx.error ?? "the transaction failed") : null);
+  const txPending = tx !== undefined && !done && !txFailed;
 
   // Stage 1. The widget cannot mount before this resolves — `rp_context` is what proves the
   // request came from our registered RP, and it only exists once the server has signed it.
@@ -131,7 +150,9 @@ function SelfieCheckDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on completion only
   }, [signed]);
 
-  const closable = done || error !== null;
+  // Not while the transaction is out: closing would hide a wallet prompt the user still has to
+  // answer. Dismissing that prompt fails the submission, which makes the modal closable again.
+  const closable = done || failure !== null;
 
   useEffect(() => {
     if (!closable) return;
@@ -143,6 +164,25 @@ function SelfieCheckDialog({
   }, [closable, onClose]);
 
   const attestation = signed?.attestation;
+
+  const title = failure
+    ? txFailed
+      ? "transaction failed"
+      : "selfie check failed"
+    : done
+      ? submission
+        ? "confirmed on sepolia"
+        : "selfie check passed"
+      : "selfie check";
+  const body = failure
+    ? failure
+    : done
+      ? submission
+        ? "the transaction landed. the page updates on its own."
+        : "the attestation is signed and ready to submit."
+      : txPending
+        ? submittingCopy(tx.phase)
+        : "proving a unique, live human is behind this request.";
 
   return (
     <div
@@ -187,9 +227,9 @@ function SelfieCheckDialog({
         <div className="card max-h-[88vh] overflow-y-auto p-6">
           <div className="flex items-start gap-3">
             <span
-              className={`icon-box ${error ? "bg-coral" : done ? "bg-teal" : "bg-lavender"}`}
+              className={`icon-box ${failure ? "bg-coral" : done ? "bg-teal" : "bg-lavender"}`}
             >
-              {error ? (
+              {failure ? (
                 <AlertIcon size={22} />
               ) : done ? (
                 <CheckIcon size={22} />
@@ -198,16 +238,8 @@ function SelfieCheckDialog({
               )}
             </span>
             <div>
-              <h2 className="text-xl">
-                {error ? "selfie check failed" : done ? "selfie check passed" : "selfie check"}
-              </h2>
-              <p className="mt-1 text-sm text-muted">
-                {error
-                  ? error
-                  : done
-                    ? "the attestation is signed and ready to submit."
-                    : "proving a unique, live human is behind this request."}
-              </p>
+              <h2 className="text-xl">{title}</h2>
+              <p className="mt-1 text-sm text-muted">{body}</p>
             </div>
           </div>
 
@@ -221,9 +253,12 @@ function SelfieCheckDialog({
               label="expiry"
               value={attestation ? expiresIn(attestation.expiry) : "…"}
             />
+            {submission ? (
+              <FieldRow label="transaction" value={tx?.hash ? shortNonce(tx.hash) : "…"} />
+            ) : null}
           </div>
 
-          <StageList current={stage} failed={error !== null} />
+          <StageList stages={stages} current={current} failed={failure !== null} />
 
           {done && attestation ? (
             <div className="mt-5 flex items-start gap-2.5 rounded-[8px] border-2 border-ink bg-teal px-4 py-3">
@@ -236,13 +271,40 @@ function SelfieCheckDialog({
             </div>
           ) : null}
 
+          {tx?.hash ? (
+            <a
+              href={explorerTxUrl(tx.hash)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-block text-xs font-bold underline decoration-2 underline-offset-4"
+            >
+              view the transaction on etherscan
+            </a>
+          ) : null}
+
+          {txFailed && signed && onResubmit ? (
+            <button
+              type="button"
+              className="btn btn-ghost mt-6 w-full"
+              onClick={() => onResubmit(signed)}
+            >
+              send the same attestation again
+            </button>
+          ) : null}
+
           <button
             type="button"
-            className="btn mt-6 w-full"
+            className={`btn w-full ${txFailed && onResubmit ? "mt-3" : "mt-6"}`}
             onClick={onClose}
             disabled={!closable}
           >
-            {error ? "close" : done ? confirmLabel : "verifying…"}
+            {failure
+              ? "close"
+              : done
+                ? confirmLabel
+                : txPending
+                  ? (pendingLabel(tx.phase) ?? "submitting…")
+                  : "verifying…"}
           </button>
         </div>
       </div>
@@ -250,11 +312,19 @@ function SelfieCheckDialog({
   );
 }
 
-/** The five stages, ticked off as the run progresses. */
-function StageList({ current, failed }: { current: number; failed: boolean }) {
+/** The stages, ticked off as the run progresses. */
+function StageList({
+  stages,
+  current,
+  failed,
+}: {
+  stages: readonly { label: string; detail: string }[];
+  current: number;
+  failed: boolean;
+}) {
   return (
     <ol className="mt-5 space-y-2.5">
-      {SELFIE_CHECK_STAGES.map((entry, index) => {
+      {stages.map((entry, index) => {
         const state =
           current > index
             ? "done"
@@ -298,6 +368,17 @@ function StageList({ current, failed }: { current: number; failed: boolean }) {
       })}
     </ol>
   );
+}
+
+function submittingCopy(phase: TxState["phase"]): string {
+  switch (phase) {
+    case "awaiting-signature":
+      return "the check passed. confirm the transaction in your wallet.";
+    case "confirming":
+      return "waiting for sepolia to include the transaction.";
+    default:
+      return "the check passed. making sure the transaction will go through.";
+  }
 }
 
 /** A decimal uint256 back to hex, which is how a nonce is read off a screen. */

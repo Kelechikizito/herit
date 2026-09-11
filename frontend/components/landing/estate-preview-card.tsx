@@ -7,23 +7,21 @@ import { LockIcon } from "@/components/ui/icons";
 import {
   bpsToPercent,
   countdownTarget,
-  type Estate,
   formatCountdown,
   formatDuration,
   fullName,
-  type Heir,
   phaseSeconds,
   secondsUntil,
   windowProgress,
 } from "@/lib/estate";
-import { DESIGN_NOW, sampleEstate } from "@/lib/fixtures/estate";
+import { DESIGN_NOW, SAMPLE_HEIRS, type SampleHeir, sampleEstate } from "@/lib/fixtures/estate";
 
 /** How many heirs fit in the hero card before it starts crowding the ring. */
 const PREVIEW_HEIRS = 2;
 
 /**
- * A frozen snapshot of the dashboard, sitting beside the hero copy. Built from the same fixture
- * and the same components the app screens use.
+ * A frozen snapshot of the dashboard, sitting beside the hero copy. Built from the landing
+ * fixture and the same components the app screens use.
  */
 export function EstatePreviewCard() {
   // The design epoch, not the wall clock: a marketing snapshot that renders identically
@@ -63,8 +61,8 @@ export function EstatePreviewCard() {
         </div>
 
         <div className="space-y-2">
-          {estate.heirs.slice(0, PREVIEW_HEIRS).map((heir, index) => (
-            <PreviewHeir key={heir.label} estate={estate} heir={heir} index={index} />
+          {SAMPLE_HEIRS.slice(0, PREVIEW_HEIRS).map((heir, index) => (
+            <PreviewHeir key={heir.label} estateLabel={estate.label} heir={heir} index={index} />
           ))}
         </div>
 
@@ -83,12 +81,12 @@ export function EstatePreviewCard() {
 }
 
 function PreviewHeir({
-  estate,
+  estateLabel,
   heir,
   index,
 }: {
-  estate: Estate;
-  heir: Heir;
+  estateLabel: string;
+  heir: SampleHeir;
   index: number;
 }) {
   return (
@@ -96,7 +94,7 @@ function PreviewHeir({
       <HeirAvatar index={index} size="md" />
       <div className="min-w-0 flex-1">
         <p className="mono truncate text-[0.78rem] font-bold">
-          {fullName(estate, heir.label)}
+          {fullName({ label: estateLabel }, heir.label)}
         </p>
         <p className="text-[0.68rem] text-muted">{heir.relationship}</p>
       </div>

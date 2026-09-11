@@ -179,11 +179,21 @@ All verified on Sepolia Etherscan.
 
 | Contract | Address | Transaction |
 |---|---|---|
-| `AccessControlGate` | `0xA86e42C7250fec7C29cfA09584847B0B24C63103` | `0x1e245e76bbeb485c4eeabd60b84299f0116b36cb66db8ac481321487640aaa6d` |
-| `HeritRegistry` | `0xae63470A513d3488a42cd877b7ec42f861b76207` | `0x091ba870b189e85ab312f8ca81cdd49bd1c8c611a1865d751b9a0c353153172c` |
-| `HeritVault` | `0xC7EBa4BD6CE4c4d42C69e4Da8498911c57dae0BA` | `0xe82ad5a48808e0fc8ded8f6e4e0836c5eb0e744f749168d9ca079319964d3ee5` |
-| `ClaimManager` | `0xeC3692EA195EecE5370Ea781208cD98d8DBD081c` | `0x9b0f654433f40cda519293ca11db6d3a73122fa89236e68b9ac5ca6c5674453a` |
+| `AccessControlGate` | `0xA86e42C7250fec7C29cfA09584847B0B24C63103` | `0x029f6c7d5ad9d76e141286f22222b8d4cdf977851c48d5340acc88716955cd75` |
+| `HeritRegistry` | `0xae63470A513d3488a42cd877b7ec42f861b76207` | `0x9b0f654433f40cda519293ca11db6d3a73122fa89236e68b9ac5ca6c5674453a` |
+| `HeritVault` | `0xC7EBa4BD6CE4c4d42C69e4Da8498911c57dae0BA` | `0x5b83791b175ab34981a35053ad3b4879e3e101fa3dbb94170897d5e68cddc47e` |
+| `ClaimManager` | `0xeC3692EA195EecE5370Ea781208cD98d8DBD081c` | `0xe82ad5a48808e0fc8ded8f6e4e0836c5eb0e744f749168d9ca079319964d3ee5` |
 | `LivenessAttestor` | `0x6Ffe62994e64c0617f4bdfD2c81C8B439324366C` | `0xb1b039b8f7303764c3e2026c9223d8c9fa556578d0aea42c27cd24a4298462f0` |
+
+| Step | Transaction |
+|---|---|
+| Gate granted registry A roles | `0x1e245e76bbeb485c4eeabd60b84299f0116b36cb66db8ac481321487640aaa6d` |
+| Gate granted resolver roles | `0x091ba870b189e85ab312f8ca81cdd49bd1c8c611a1865d751b9a0c353153172c` |
+
+All seven landed in block 11675256. The hashes are taken from the on-chain receipts
+(`contractAddress` for the five creations, `to` for the two grants). The `transactions` array in
+`broadcast/DeployHerit.s.sol/11155111/deploy-latest.json` pairs hashes with the wrong entries;
+its `receipts` array is correct, so read hashes from there, not from `transactions`.
 
 This gate supersedes Checkpoint 5's `0xD9431E68…E947`, which pointed `I_HERIT_REGISTRY` at the
 deployer EOA. Registry A and the resolver are unchanged; the deploy re-ran their two role grants

@@ -197,8 +197,12 @@ remembering the flag. Same shape as the `docs/` trap in CLAUDE.md.
 | `RP_SIGNING_KEY` | **server only** | The RP private key, hex. Never `NEXT_PUBLIC_*`. Never logged. Returned by the Portal exactly once; if it is lost the only path is rotation, which invalidates the old signer and needs a redeploy. |
 | `NULLIFIER_SALT` | **server only** | Any 32 random bytes. Never leaves the server; see §2. |
 | `ATTESTOR_PRIVATE_KEY` | **server only** | The EIP-712 signer. Must match `LivenessAttestor.I_SIGNER`. |
-| `NEXT_PUBLIC_ATTESTOR_ADDRESS` | yes | The deployed `LivenessAttestor`, for the EIP-712 domain. |
 | `NEXT_PUBLIC_CHAIN_ID` | yes | `11155111`. |
+| `NEXT_PUBLIC_SEPOLIA_RPC_URL` | yes | Read by wagmi in the browser and by the verify route's chain pre-checks (§9). |
+
+The attestor address is deliberately **not** a key. The route imports `herit.livenessAttestor`
+from `lib/contracts/addresses.ts` for the EIP-712 domain, the same constant the client sends the
+transaction to, so the two cannot drift and make every signature recover to the wrong signer.
 
 Read the secrets inside the route handler, not at module top level, and throw a clear error when
 one is missing. A route that silently signs with `undefined` fails much later and much worse.
@@ -410,34 +414,58 @@ Check-in is deliberately recurring: the same human proves liveness every interva
 action, so they produce the same nullifier every time, by design. A uniqueness constraint would
 accept the first check-in and refuse every one after it.
 
-The ledger mirrors the two rules the contract actually enforces, which are not the same rule:
+The contract enforces two rules, and they are not the same rule:
 
-| On-chain | Off-chain mirror |
-|---|---|
-| `s_estateCommitment[estateId]` — the first check-in binds the estate to one human; that human repeats forever | estate → nullifier, first write wins. A *different* nullifier is rejected — the stolen-key case. |
-| `s_claimUsed[estateId][commitment]` — one human, one claim | `(estateId, nullifier)` unique, among claims only. |
+- `s_estateCommitment[estateId]` — the first check-in binds the estate to one human, and that human
+  repeats forever. A *different* human is rejected — the stolen-key case.
+- `s_claimUsed[estateId][commitment]` — one human, one claim per estate.
 
-**Done** — `frontend/lib/server/nullifier-ledger.ts`, a JSON file under `frontend/.data/`
-(gitignored), called from the verify route before the attestation is signed. Writes are serialized
-through a promise chain and land via write-then-rename, so two requests in the same second cannot
-lose one another's write and a crash mid-write cannot truncate the file.
-
-It **fails open**: if the file cannot be read or written the check is skipped rather than blocking
-a legitimate user. The contract still refuses the duplicate — the only thing lost is the early
-rejection, and a demo that cannot write to disk should still demo.
-
-Herit has an unusual advantage here: **the chain is already that table.**
-`s_estateCommitment[estateId]` is a one-writer-wins binding of an estate to a human, and
-`s_claimUsed[estateId][commitment]` is a uniqueness constraint on claims. Both are enforced by
-`LivenessAttestor`, and both survive a server restart, a redeploy, and a wiped database. That is
+Herit has an unusual advantage here: **the chain is already that table.** Both rules are enforced
+by `LivenessAttestor`, and both survive a server restart, a redeploy, and a wiped database. That is
 the real anti-replay mechanism and it is worth a sentence at judging.
 
-What a server-side ledger adds is that a duplicate fails *before* the user pays gas to be
-rejected, and that you can see it happening. For four days, a small table keyed
-`(action, nullifier)` is enough — SQLite, or a JSON file under `frontend/.data/` that you
-gitignore. Write down in the file's header that it is a demo store, so nobody reads it later as
-a claim about production. The in-memory `Set` in World's sample is illustrative only; it forgets
-everything on the next `next dev` reload, which during a demo is every time you save a file.
+### Superseded: the file ledger
+
+The first build kept a JSON file under `frontend/.data/` and wrote to it **before** signing. Nothing
+ever removed an entry, and that broke real users:
+
+- A claim that did not land (estate not unlocked yet, wallet prompt dismissed, attestation expired)
+  left the heir refused forever with "already claimed", while the contract would have accepted them.
+- A check-in bound the estate to whichever human verified first, even if that human never sent the
+  transaction.
+- A file under `.data/` does not survive a serverless deploy.
+
+### Done: read-only pre-checks against the chain
+
+`frontend/lib/server/preflight.ts` runs one `multicall` against Sepolia. The verify route calls it
+after computing the commitment and before signing. Each check mirrors a revert the transaction
+would hit:
+
+| Purpose | Check | Mirrors |
+|---|---|---|
+| check-in | registry A `getOwner(estateId) == subject` | `LivenessAttestor__NotTheGrantor` |
+| check-in | `attestor.commitmentOf(estateId)` is zero or equals `commitment` | `LivenessAttestor__WrongHuman` |
+| check-in | `registry.estateOf(estateId).checkInInterval != 0` | `HeritRegistry__NotConfigured` |
+| check-in | `registry.statusOf(estateId) != Unlocked` | `HeritRegistry__EstateUnlocked` |
+| claim | `registry.statusOf(estateId) == Unlocked` | `ClaimManager__EstateNotUnlocked` |
+| claim | `registry.heirAddressOf(estateId, heirLabelhash) == subject` | `ClaimManager__NotEntitled` |
+| claim | `!attestor.claimCommitmentUsed(estateId, commitment)` | `LivenessAttestor__CommitmentUsed` |
+| claim | `attestor.commitmentOf(estateId) != commitment` | `LivenessAttestor__WrongHuman` (grantor claiming) |
+
+Two checks do not read what the contract reads, on purpose:
+
+- `statusOf` returns the *pending* status, so a lapsed estate that nobody has poked already reads
+  `Unlocked`. `ClaimManager.claim` pokes first, so the claim is honoured.
+- `ClaimManager` checks `gate.canClaim`, but the ENS role behind it is only granted by that poke.
+  `canClaim` reads `false` before the claim transaction runs, so the route checks `heirAddressOf`
+  instead.
+
+Because the checks only read, an attestation that never lands leaves nothing behind, and the retry
+passes.
+
+The checks **fail open**. If the RPC call itself fails, the route logs the error name and signs
+anyway. The contract still refuses a bad transaction; all that is lost is the early, gas-free
+rejection. A violation that the checks *do* read fails closed, with a 400 the modal can show.
 
 ---
 
@@ -470,8 +498,8 @@ warning Checkpoint 9 carried, for the same reason.
   `developer.world.org`, and the modal reaches its last stage on real events rather than a timer.
 - `RP_SIGNING_KEY` appears in exactly one file, is read inside a route handler, and grepping the
   built output for it finds nothing.
-- The same nullifier submitted twice is refused by the ledger, and would be refused by the
-  contract even if the ledger were empty.
+- A second claim by the same human is refused before signing, because `claimCommitmentUsed`
+  already reads true. The contract would refuse it anyway.
 - A second check-in for an estate, by a different human, is rejected — you can demonstrate this
   with two simulator identities, and it is the "the thief has the key and still cannot check in"
   moment the whole project is built around.
@@ -495,7 +523,7 @@ Written and passing `npm run lint`, `npx tsc --noEmit` and `npm run build`:
 | §5 `POST /api/worldid/sign` | done |
 | §6 the widget | done — real events drive the five stages, with an error state |
 | §7 `POST /api/worldid/verify` | done, with one caveat below |
-| §9 the nullifier ledger | done |
+| §9 the nullifier ledger | done: read-only chain pre-checks. The file ledger was removed (see §9). |
 | §3 the Portal | `app_mode` confirmed `external`. Selfie Check flag and the actions still open. |
 
 **The caveat in §7.** `looksVerified()` is a guess at the success shape, because no real 200 has

@@ -17,7 +17,7 @@ export const STATUS_COPY: Record<
   },
   unlocked: {
     label: "unlocked",
-    blurb: "grace lapsed — heirs hold ROLE_HEIR_CLAIM and may claim",
+    blurb: "grace lapsed — the estate belongs to its heirs now",
     color: "bg-coral",
   },
 };

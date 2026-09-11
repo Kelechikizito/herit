@@ -1,31 +1,36 @@
 import Link from "next/link";
 import { HeirRow } from "@/components/estate/heir-row";
-import { RoleChip } from "@/components/estate/role-chip";
+import { ClaimChip, RoleChip } from "@/components/estate/role-chip";
 import { PlusIcon } from "@/components/ui/icons";
-import { PanelCard, PanelList } from "@/components/ui/panel-card";
-import type { Estate } from "@/lib/estate";
+import { PanelCard, PanelEmpty, PanelList } from "@/components/ui/panel-card";
+import { type Heir, estateHref } from "@/lib/estate";
 
 /** The heir list, read-only here; editing lives on `/heirs`. */
-export function HeirsCard({ estate }: { estate: Estate }) {
+export function HeirsCard({ estateLabel, heirs }: { estateLabel: string; heirs: readonly Heir[] }) {
   return (
     <PanelCard
       title="heirs"
       action={
-        <Link href="/heirs" className="btn btn-ghost btn-sm">
+        <Link href={estateHref("/heirs", estateLabel)} className="btn btn-ghost btn-sm">
           <PlusIcon size={15} />
           add
         </Link>
       }
     >
-      <PanelList>
-        {estate.heirs.map((heir, index) => (
-          <li key={heir.label} className="px-6 py-4">
-            <HeirRow estate={estate} heir={heir} index={index}>
-              <RoleChip status={estate.status} claimed={heir.claimed} />
-            </HeirRow>
-          </li>
-        ))}
-      </PanelList>
+      {heirs.length === 0 ? (
+        <PanelEmpty>no heirs named yet. until one is, this estate has nobody to unlock to.</PanelEmpty>
+      ) : (
+        <PanelList>
+          {heirs.map((heir, index) => (
+            <li key={heir.label} className="px-6 py-4">
+              <HeirRow estateLabel={estateLabel} heir={heir} index={index}>
+                <RoleChip heir={heir} />
+                <ClaimChip heir={heir} />
+              </HeirRow>
+            </li>
+          ))}
+        </PanelList>
+      )}
     </PanelCard>
   );
 }
