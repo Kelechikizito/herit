@@ -15,7 +15,18 @@ import type { RpContext } from "@worldcoin/idkit";
 
 /** What a given check is being performed for. `heirLabel` travels as the proof's signal, not in the action. */
 export type SelfieCheckPurpose =
-  | { kind: "checkin"; estateLabel: string }
+  | {
+      kind: "checkin";
+      estateLabel: string;
+      /**
+       * The first check-in, sent in the same run that opens the estate.
+       *
+       * Only the verify route's pre-checks read this: before that run lands the name has no owner
+       * and no timers, so the checks meant for a live estate would turn away every new one. What
+       * `LivenessAttestor` enforces is unchanged — it reads the owner when the call executes.
+       */
+      setup?: boolean;
+    }
   | { kind: "claim"; estateLabel: string; heirLabel: string };
 
 export const SELFIE_CHECK_STAGES: readonly { label: string; detail: string }[] =
@@ -66,6 +77,22 @@ export type SignedAttestation = {
   };
   signature: `0x${string}`;
 };
+
+/**
+ * The attestation in the shape `LivenessAttestor` takes, with the decimal strings turned back into
+ * bigints. Shared by the check-in, the claim and the setup run, so one conversion can be wrong.
+ */
+export function toAttestationArgs({ attestation }: SignedAttestation) {
+  return {
+    estateId: BigInt(attestation.estateId),
+    subject: attestation.subject,
+    action: attestation.action,
+    heirLabelhash: BigInt(attestation.heirLabelhash),
+    commitment: attestation.commitment,
+    nonce: BigInt(attestation.nonce),
+    expiry: BigInt(attestation.expiry),
+  };
+}
 
 /**
  * The World ID action, which scopes the nullifier. One per estate, shared by both purposes.
