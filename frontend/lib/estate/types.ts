@@ -80,13 +80,23 @@ export type Claimable = {
   amount: bigint;
 };
 
-export type LogKind = "opened" | "checkin" | "heir" | "unlock" | "claim" | "deposit";
+export type LogKind =
+  | "opened"
+  | "checkin"
+  | "grace"
+  | "heir"
+  | "unlock"
+  | "claim"
+  | "deposit"
+  | "withdraw";
 
 export type LogEntry = {
   id: string;
   stamp: number;
   kind: LogKind;
   text: string;
+  /** Where to look the entry up: its transaction on Etherscan. */
+  href?: string;
 };
 
 /** An estate the connected wallet opened and still owns the name of. */

@@ -11,13 +11,15 @@ import { SelectionNotice } from "@/components/estate/selection-notice";
 import { StatusPill } from "@/components/estate/status-pill";
 import { PageHeader } from "@/components/layout/page-header";
 import {
-  type LogEntry,
+  type Heir,
   type OwnedEstate,
+  type VaultToken,
   all,
   estateLink,
   fullName,
   shortAddress,
 } from "@/lib/estate";
+import { useEstateActivity } from "@/lib/estate/use-activity";
 import { useSelectedEstate } from "@/lib/estate/use-discovery";
 import { useEstate } from "@/lib/estate/use-estate";
 import { useHeirs } from "@/lib/estate/use-heirs";
@@ -25,8 +27,8 @@ import { useVault } from "@/lib/estate/use-vault";
 
 const toLink = (estate: OwnedEstate) => estateLink("/dashboard", estate);
 
-/** Event history needs an indexer or a log scan (Phase F). Until then the feed is empty, not sampled. */
-const NO_ACTIVITY: readonly LogEntry[] = [];
+const NO_HEIRS: readonly Heir[] = [];
+const NO_TOKENS: readonly VaultToken[] = [];
 
 export function DashboardView({
   now,
@@ -64,6 +66,7 @@ function Dashboard({
   const estate = useEstate(selected.estateId, selected.label);
   const vault = useVault(selected.estateId);
   const heirs = useHeirs(selected.estateId, selected.label, vault);
+  const activity = useEstateActivity(selected.estateId);
 
   return (
     <>
@@ -110,7 +113,15 @@ function Dashboard({
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <ActivityCard entries={NO_ACTIVITY} />
+        {/* The feed never waits on heirs or the vault: it names what they have loaded so far. */}
+        <ActivityCard
+          activity={activity}
+          context={{
+            estateLabel: selected.label,
+            heirs: heirs.status === "ready" ? heirs.data : NO_HEIRS,
+            tokens: vault.status === "ready" ? vault.data.tokens : NO_TOKENS,
+          }}
+        />
         <Loaded load={all(estate, heirs, vault)} title="vault">
           {([estate, heirs, vault]) => <VaultCard estate={estate} heirs={heirs} vault={vault} />}
         </Loaded>

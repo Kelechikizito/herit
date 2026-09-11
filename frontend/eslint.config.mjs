@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // AssemblyScript for graph-node, built by graph-cli rather than Next.
+    "subgraph/**",
   ]),
 ]);
 

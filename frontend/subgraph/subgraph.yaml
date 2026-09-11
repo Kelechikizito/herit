@@ -1,0 +1,127 @@
+# The herit activity feed. Addresses mirror `lib/contracts/addresses.ts` — the five contracts are
+# one deployment, so after a redeploy update all five here too, and the start block with them.
+specVersion: 1.3.0
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AccessControlGate
+    network: sepolia
+    source:
+      address: "0xA86e42C7250fec7C29cfA09584847B0B24C63103"
+      abi: AccessControlGate
+      startBlock: 11675256
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Estate
+        - ActivityEvent
+      abis:
+        - name: AccessControlGate
+          file: ./abis/AccessControlGate.json
+      eventHandlers:
+        - event: EstateOpened(indexed uint256,indexed address,indexed address,string)
+          handler: handleEstateOpened
+        - event: HeirRegistered(indexed uint256,indexed uint256,indexed address,uint16)
+          handler: handleHeirRegistered
+        - event: HeirUnlocked(indexed uint256,indexed uint256,indexed address)
+          handler: handleHeirUnlocked
+      file: ./src/access-control-gate.ts
+
+  - kind: ethereum
+    name: HeritRegistry
+    network: sepolia
+    source:
+      address: "0xae63470A513d3488a42cd877b7ec42f861b76207"
+      abi: HeritRegistry
+      startBlock: 11675256
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - ActivityEvent
+      abis:
+        - name: HeritRegistry
+          file: ./abis/HeritRegistry.json
+      eventHandlers:
+        - event: EstateConfigured(indexed uint256,uint64,uint64)
+          handler: handleEstateConfigured
+        - event: CheckedIn(indexed uint256,uint64)
+          handler: handleCheckedIn
+        - event: EnteredGrace(indexed uint256,uint64)
+          handler: handleEnteredGrace
+        - event: Unlocked(indexed uint256,uint64,uint256)
+          handler: handleUnlocked
+      file: ./src/herit-registry.ts
+
+  - kind: ethereum
+    name: HeritVault
+    network: sepolia
+    source:
+      address: "0xC7EBa4BD6CE4c4d42C69e4Da8498911c57dae0BA"
+      abi: HeritVault
+      startBlock: 11675256
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - ActivityEvent
+      abis:
+        - name: HeritVault
+          file: ./abis/HeritVault.json
+      eventHandlers:
+        - event: Deposited(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleDeposited
+        - event: Withdrawn(indexed uint256,indexed address,indexed address,uint256)
+          handler: handleWithdrawn
+      file: ./src/herit-vault.ts
+
+  - kind: ethereum
+    name: ClaimManager
+    network: sepolia
+    source:
+      address: "0xeC3692EA195EecE5370Ea781208cD98d8DBD081c"
+      abi: ClaimManager
+      startBlock: 11675256
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - ActivityEvent
+      abis:
+        - name: ClaimManager
+          file: ./abis/ClaimManager.json
+      eventHandlers:
+        - event: Claimed(indexed uint256,indexed uint256,indexed address,address,uint256)
+          handler: handleClaimed
+        - event: ClaimSettled(indexed uint256,indexed uint256,indexed address,uint256)
+          handler: handleClaimSettled
+      file: ./src/claim-manager.ts
+
+  - kind: ethereum
+    name: LivenessAttestor
+    network: sepolia
+    source:
+      address: "0x6Ffe62994e64c0617f4bdfD2c81C8B439324366C"
+      abi: LivenessAttestor
+      startBlock: 11675256
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - ActivityEvent
+      abis:
+        - name: LivenessAttestor
+          file: ./abis/LivenessAttestor.json
+      eventHandlers:
+        - event: CheckInAttested(indexed uint256,indexed address,uint256)
+          handler: handleCheckInAttested
+        - event: ClaimAttested(indexed uint256,indexed uint256,indexed address,uint256)
+          handler: handleClaimAttested
+      file: ./src/liveness-attestor.ts

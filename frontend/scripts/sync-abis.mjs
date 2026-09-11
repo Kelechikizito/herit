@@ -1,4 +1,5 @@
-// Copy ABIs out of Foundry's artifacts and into `lib/contracts/abis/`.
+// Copy ABIs out of Foundry's artifacts and into `lib/contracts/abis/`, plus plain JSON copies in
+// `subgraph/abis/` for graph-cli.
 //
 // The point is that no ABI in this app is written by hand: the contracts are the source, and
 // this makes the frontend's copy a build product of `forge build` rather than something that
@@ -15,6 +16,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "..", "..", "out");
 const DEST = join(HERE, "..", "lib", "contracts", "abis");
+const SUBGRAPH_DEST = join(HERE, "..", "subgraph", "abis");
 
 /** The contracts the frontend actually calls. Anything else in `out/` is noise. */
 const WANTED = [
@@ -46,6 +48,7 @@ async function main() {
   }
 
   await mkdir(DEST, { recursive: true });
+  await mkdir(SUBGRAPH_DEST, { recursive: true });
 
   const written = [];
   const missing = [];
@@ -64,6 +67,8 @@ async function main() {
       `export const ${lowerFirst(name)}Abi = ${JSON.stringify(artifact.abi, null, 2)} as const;\n`;
 
     await writeFile(file, body, "utf8");
+    // graph-cli wants the bare ABI array, and names data sources after these files.
+    await writeFile(join(SUBGRAPH_DEST, `${name}.json`), `${JSON.stringify(artifact.abi, null, 2)}\n`, "utf8");
     written.push(`${name} (${artifact.abi.length} entries)`);
   }
 

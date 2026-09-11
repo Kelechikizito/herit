@@ -13,6 +13,7 @@ import { useConfig } from "wagmi";
 import { simulateContract, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { CHAIN_ID } from "@/lib/contracts/addresses";
 import { describeError } from "@/lib/contracts/errors";
+import { noteConfirmedBlock } from "@/lib/subgraph/confirmed-block";
 import { useWallet } from "./use-wallet";
 
 /**
@@ -109,6 +110,8 @@ export function useTransaction() {
           return false;
         }
 
+        // The activity feed reads an indexer, which trails the receipt: tell it which block to wait for.
+        noteConfirmedBlock(receipt.blockNumber);
         // Awaited, so a caller that moves on after `send` resolves sees the chain as it now is.
         await queryClient.invalidateQueries({
           predicate: (query) => CHAIN_READS.has(String(query.queryKey[0])),
