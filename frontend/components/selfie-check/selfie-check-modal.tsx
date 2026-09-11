@@ -116,10 +116,14 @@ function SelfieCheckDialog({
    * doing the backend call in `handleVerify` rather than in `onSuccess` — a proof our server
    * refuses must never reach the wallet.
    */
+  /** Why our own verify route refused, kept across IDKit's lossy error boundary. */
+  const hostRejection = useRef<string | null>(null);
+
   const handleVerify = useCallback(
     async (result: IDKitResult) => {
       if (!address) throw new Error("connect a wallet before verifying");
       setStage(2);
+      hostRejection.current = null;
 
       const response = await fetch("/api/worldid/verify", {
         method: "POST",
@@ -131,7 +135,14 @@ function SelfieCheckDialog({
       setStage(3);
 
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "the proof was rejected");
+      if (!response.ok) {
+        // IDKit swallows this error and reports `failed_by_host_app` with no detail, so the
+        // reason is stashed for `onError` to prefer. Without it the user sees a code that says
+        // only "your own server said no".
+        const reason = body.error ?? "the proof was rejected";
+        hostRejection.current = reason;
+        throw new Error(reason);
+      }
 
       setSigned(body as SignedAttestation);
       setStage(4);
@@ -215,7 +226,9 @@ function SelfieCheckDialog({
           handleVerify={handleVerify}
           onSuccess={() => {}}
           onError={(code: IDKitErrorCodes, debugReport?: IDKitDebugReport) => {
-            setError(errorMessage(code, config.environment));
+            // `failed_by_host_app` only means "our own server refused". The reason it gave is
+            // more useful than the code, so it wins when we have one.
+            setError(hostRejection.current ?? errorMessage(code, config.environment));
             if (debugReport) console.error("[selfie-check]", debugReport);
           }}
         />
