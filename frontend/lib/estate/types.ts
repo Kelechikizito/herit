@@ -80,19 +80,42 @@ export type Claimable = {
   amount: bigint;
 };
 
-export type LogKind = "opened" | "checkin" | "heir" | "unlock" | "claim" | "deposit";
+export type LogKind =
+  | "opened"
+  | "checkin"
+  | "grace"
+  | "heir"
+  | "unlock"
+  | "claim"
+  | "deposit"
+  | "withdraw";
 
 export type LogEntry = {
   id: string;
   stamp: number;
   kind: LogKind;
   text: string;
+  /** Where to look the entry up: its transaction on Etherscan. */
+  href?: string;
 };
 
 /** An estate the connected wallet opened and still owns the name of. */
 export type OwnedEstate = {
   estateId: bigint;
   label: string;
+};
+
+/** One row of the estates table: enough to choose between estates, read for all of them at once. */
+export type EstateOverview = OwnedEstate & {
+  status: EstateStatus;
+  clock: EstateClock;
+  heirCount: number;
+  /** The sum of every heir's `defaultShareOf`. */
+  allocatedBps: number;
+  /** The vault's ETH balance for this estate. */
+  ethBalance: bigint;
+  /** ERC20s the vault lists for this estate, whether or not they still hold a balance. */
+  erc20Count: number;
 };
 
 /** One place the connected wallet is named as an heir: which estate, and which name inside it. */

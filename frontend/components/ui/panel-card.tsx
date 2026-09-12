@@ -23,7 +23,7 @@ export function PanelCard({
     <section className={`card relative overflow-hidden ${className}`}>
       {decoration}
       <div
-        className={`relative z-10 border-b-2 border-ink bg-cream px-6 py-4 ${
+        className={`relative z-10 border-b-2 border-ink bg-cream px-5 py-4 sm:px-6 ${
           action ? "flex items-center justify-between gap-3" : ""
         }`}
       >
@@ -45,5 +45,5 @@ export function PanelList({ children }: { children: React.ReactNode }) {
 
 /** What a `PanelCard` says in place of an empty list. */
 export function PanelEmpty({ children }: { children: React.ReactNode }) {
-  return <p className="px-6 py-5 text-sm leading-relaxed text-muted">{children}</p>;
+  return <p className="px-5 py-5 text-sm leading-relaxed text-muted sm:px-6">{children}</p>;
 }

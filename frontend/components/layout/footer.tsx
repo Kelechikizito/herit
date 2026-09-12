@@ -9,15 +9,15 @@ import { Logo } from "./logo";
 
 export function Footer() {
   return (
-    <footer className="px-4 pb-10 sm:px-6">
-      <div className="mx-auto max-w-6xl rounded-[14px] border-2 border-ink bg-surface px-6 py-8 shadow-brut">
+    <footer className="px-3 pb-8 sm:px-6 sm:pb-10">
+      <div className="mx-auto max-w-6xl rounded-[14px] border-2 border-ink bg-surface px-5 py-7 shadow-brut sm:px-6 sm:py-8">
         <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
             <Logo />
             <p className="mt-3 text-sm leading-relaxed text-muted">{FOOTER_BLURB}</p>
           </div>
 
-          <div className="flex flex-wrap gap-10">
+          <div className="grid grid-cols-2 gap-6 sm:flex sm:flex-wrap sm:gap-10">
             {FOOTER_COLUMNS.map((column) => (
               <FooterColumn key={column.title} title={column.title} links={column.links} />
             ))}

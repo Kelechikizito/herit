@@ -1,0 +1,55 @@
+"""
+An estate the gate opened. Mutable: a name that lapses can be opened again under the same id.
+"""
+type Estate @entity(immutable: false) {
+  "The estate id, uint256(labelhash(label)), in decimal."
+  id: ID!
+  label: String!
+  grantor: Bytes!
+  estateRegistry: Bytes!
+  openedAt: BigInt!
+  activity: [ActivityEvent!]! @derivedFrom(field: "estate")
+}
+
+"One per indexed event, named after it."
+enum ActivityKind {
+  EstateOpened
+  EstateConfigured
+  HeirRegistered
+  HeirUnlocked
+  CheckedIn
+  EnteredGrace
+  Unlocked
+  Deposited
+  Withdrawn
+  Claimed
+  ClaimSettled
+  CheckInAttested
+  ClaimAttested
+}
+
+"""
+One event against one estate. The fields past `txHash` are typed rather than pre-rendered: token
+decimals and heir labels live with the app, so the app writes the sentence.
+"""
+type ActivityEvent @entity(immutable: true) {
+  "Transaction hash + log index."
+  id: Bytes!
+  estate: Estate!
+  kind: ActivityKind!
+  "Block number × 1,000,000 + log index. Chain order in one field, since orderBy takes only one."
+  sequence: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+  "The address the event names: grantor, heir, depositor, withdrawal recipient or attestation subject."
+  account: Bytes
+  heirLabelhash: BigInt
+  token: Bytes
+  amount: BigInt
+  shareBps: Int
+  "Unlocked: heirs granted the claim role. ClaimSettled: tokens paid."
+  count: BigInt
+  checkInInterval: BigInt
+  graceDuration: BigInt
+}

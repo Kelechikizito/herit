@@ -173,12 +173,39 @@ export function AlertIcon({ className, size = 22 }: IconProps) {
   );
 }
 
+/** Row disclosure. Rotated by the caller to point up when its row is open. */
+export function ChevronDownIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg className={className} {...base(size)}>
+      <path d="M6 9.5l6 6 6-6" />
+    </svg>
+  );
+}
+
 export function WalletIcon({ className, size = 18 }: IconProps) {
   return (
     <svg className={className} {...base(size)}>
       <path d="M3 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2" />
       <rect x="3" y="8" width="18" height="12" rx="2" />
       <path d="M16 14h2" />
+    </svg>
+  );
+}
+
+/** The mobile navigation toggle, in its closed state. */
+export function MenuIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg className={className} {...base(size)}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+/** The same toggle once the menu is open. */
+export function CloseIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg className={className} {...base(size)}>
+      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }

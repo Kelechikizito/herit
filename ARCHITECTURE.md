@@ -136,7 +136,7 @@ Where it could still be used is the **heir claim** (§7.4), which is a one-time 
 
 ### 6.4 Off-chain services
 - **Herit backend**: orchestrates World ID Cloud Verify calls, issues EIP-712 attestations, exposes REST/RPC endpoints to the frontend.
-- **Indexer** (Ponder/ENSNode-style): mirrors on-chain estate + role state for fast reads (dashboards, "days until check-in due" widgets) without hammering the RPC node.
+- **Indexer** (**The Graph**, `frontend/subgraph`): mirrors on-chain estate + activity state for fast reads (the dashboard's event feed, the public estate explorer) without hammering the RPC node. Anything that moves between blocks — timers, balances, status — is still read live from Sepolia, so an indexed copy of a countdown can never go stale on screen.
 - **Notification service**: reminds Grantors before their window closes (email/push/World App notification) — this is a UX necessity, not a security control; the contract's state machine is the source of truth regardless of whether a reminder fires.
 
 ---
@@ -214,7 +214,7 @@ Where it could still be used is the **heir claim** (§7.4), which is a one-time 
 | Identity | World ID (Orb/device Selfie Check), Cloud Verify API | Proof-of-personhood + liveness, chain-agnostic verification path that unblocks the Sepolia/World Chain mismatch |
 | Naming | ENSv2 (Sepolia beta), Durin (ENSv2-Sepolia path), Verifiable Factory | Hierarchical registries + role-based permissions are the literal on-chain primitive "Enhanced Access Control" needs |
 | Contracts | Solidity, Sepolia testnet | Matches ENSv2's current deployment; Foundry-based tooling (aligned with Durin) |
-| Indexing | Ponder / ENSNode-style indexer | Fast reads of estate + role state without custom subgraph infra |
+| Indexing | The Graph (subgraph in `frontend/subgraph`) | Enumerating every estate and replaying its event history are both things a subgraph does in one query and an RPC node cannot do at all |
 | Automation | Any caller, or a keeper of your choice (manual trigger for the demo) | `pokeExpiry()` is permissionless, so unlock doesn't depend on any single party remembering to poke the contract |
 
 ---

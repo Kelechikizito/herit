@@ -147,6 +147,20 @@ export function isUserRejection(error: unknown): boolean {
   return false;
 }
 
+/**
+ * Whether any error in the chain carries one of these names.
+ *
+ * Used to tell "this wallet cannot do what it said it could" from a genuine failure, so a batch can
+ * fall back to one prompt per call instead of stopping in front of the user.
+ */
+export function hasErrorNamed(error: unknown, names: ReadonlySet<string>): boolean {
+  for (const cause of causes(error)) {
+    const { name } = cause as { name?: unknown };
+    if (typeof name === "string" && names.has(name)) return true;
+  }
+  return false;
+}
+
 function findRevert(error: unknown): ContractFunctionRevertedError | undefined {
   for (const cause of causes(error)) {
     // By name, not `instanceof`: viem sets it explicitly, so it survives minification, and a second

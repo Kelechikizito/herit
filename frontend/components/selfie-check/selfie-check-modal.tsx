@@ -7,7 +7,7 @@ import type { IDKitErrorCodes, IDKitDebugReport, IDKitResult } from "@worldcoin/
 import { Star } from "@/components/ui/deco";
 import { FieldRow } from "@/components/ui/data-row";
 import { AlertIcon, CheckIcon, SelfieIcon, ShieldIcon } from "@/components/ui/icons";
-import { IconCircle } from "@/components/ui/icon-circle";
+import { StageList } from "@/components/ui/stage-list";
 import {
   SELFIE_CHECK_STAGES,
   SUBMIT_STAGE,
@@ -271,7 +271,12 @@ function SelfieCheckDialog({
             ) : null}
           </div>
 
-          <StageList stages={stages} current={current} failed={failure !== null} />
+          <StageList
+            stages={stages}
+            current={current}
+            failed={failure !== null}
+            className="mt-5"
+          />
 
           {done && attestation ? (
             <div className="mt-5 flex items-start gap-2.5 rounded-[8px] border-2 border-ink bg-teal px-4 py-3">
@@ -322,64 +327,6 @@ function SelfieCheckDialog({
         </div>
       </div>
     </div>
-  );
-}
-
-/** The stages, ticked off as the run progresses. */
-function StageList({
-  stages,
-  current,
-  failed,
-}: {
-  stages: readonly { label: string; detail: string }[];
-  current: number;
-  failed: boolean;
-}) {
-  return (
-    <ol className="mt-5 space-y-2.5">
-      {stages.map((entry, index) => {
-        const state =
-          current > index
-            ? "done"
-            : current === index
-              ? failed
-                ? "failed"
-                : "active"
-              : "pending";
-        return (
-          <li key={entry.label} className="flex items-center gap-3">
-            <IconCircle
-              size="sm"
-              accent={
-                state === "done"
-                  ? "bg-teal"
-                  : state === "failed"
-                    ? "bg-coral"
-                    : state === "active"
-                      ? "bg-yellow pulse-dot"
-                      : "bg-surface"
-              }
-            >
-              {state === "done" ? (
-                <CheckIcon size={14} />
-              ) : (
-                <span className="mono text-[0.65rem] font-bold">{index + 1}</span>
-              )}
-            </IconCircle>
-            <div className="min-w-0">
-              <p
-                className={`text-sm font-bold ${
-                  state === "pending" ? "text-muted" : "text-ink"
-                }`}
-              >
-                {entry.label}
-              </p>
-              <p className="truncate text-[0.72rem] text-muted">{entry.detail}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

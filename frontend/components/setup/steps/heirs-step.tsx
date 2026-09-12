@@ -4,6 +4,7 @@ import { useState } from "react";
 import { HeirAvatar } from "@/components/estate/heir-avatar";
 import { ShareChip } from "@/components/estate/role-chip";
 import { ShareBar, heirSegments } from "@/components/estate/share-bar";
+import { AddressField } from "@/components/ui/address-field";
 import { CardHeading } from "@/components/ui/card-heading";
 import { FormField } from "@/components/ui/form-field";
 import { AlertIcon, HeirIcon, PlusIcon, TrashIcon } from "@/components/ui/icons";
@@ -16,6 +17,11 @@ import {
   parseHeir,
   shortAddress,
 } from "@/lib/estate";
+import {
+  isPendingResolution,
+  resolvedAddress,
+  useResolvedAddress,
+} from "@/lib/wagmi/use-resolved-address";
 
 /** Step three: the heir list being drafted, and the form that appends to it. */
 export function HeirsStep({
@@ -101,13 +107,17 @@ function DraftHeirForm({
   const [input, setInput] = useState<HeirInput>(EMPTY_INPUT);
   const [problem, setProblem] = useState<string | undefined>();
 
+  // `input.address` holds whatever was typed — an address, or a name still being resolved.
+  const resolution = useResolvedAddress(input.address);
+  const waiting = isPendingResolution(resolution);
+
   const set = (field: keyof HeirInput) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setInput((current) => ({ ...current, [field]: event.target.value }));
     setProblem(undefined);
   };
 
   function add() {
-    const parsed = parseHeir(input, {
+    const parsed = parseHeir({ ...input, address: resolvedAddress(resolution) ?? input.address }, {
       takenLabels: heirs.map((heir) => heir.label),
       allocatedBps: allocatedDraftBps(heirs),
       maxHeirs,
@@ -149,17 +159,18 @@ function DraftHeirForm({
           />
         </FormField>
 
-        <FormField id="draft-address" label="controlling address" className="sm:col-span-2">
-          <input
-            id="draft-address"
-            className="input mono"
-            placeholder="0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
-            autoComplete="off"
-            spellCheck={false}
-            value={input.address}
-            onChange={set("address")}
-          />
-        </FormField>
+        <AddressField
+          id="draft-address"
+          label="controlling address"
+          className="sm:col-span-2"
+          hint="an address, or an ENS name to resolve — an heir already minted elsewhere resolves by name."
+          value={input.address}
+          onChange={(address) => {
+            setInput((current) => ({ ...current, address }));
+            setProblem(undefined);
+          }}
+          resolution={resolution}
+        />
 
         <FormField id="draft-share" label="share %">
           <input
@@ -175,9 +186,9 @@ function DraftHeirForm({
         </FormField>
 
         <div className="flex items-end">
-          <button type="button" className="btn w-full" onClick={add}>
+          <button type="button" className="btn w-full" onClick={add} disabled={waiting}>
             <PlusIcon size={16} />
-            add heir
+            {waiting ? "resolving name…" : "add heir"}
           </button>
         </div>
       </div>

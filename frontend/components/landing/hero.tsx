@@ -9,14 +9,14 @@ import { HERO_TRUST_POINTS } from "@/lib/content/landing";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden px-4 pb-20 pt-16 sm:px-6 sm:pt-24">
-      <Star className="left-[4%] top-[12%] deco-spin" size={40} fill="#FFE566" />
-      <Sparkle className="left-[10%] bottom-[18%]" size={26} fill="#7B6CF6" rotate={-12} />
+    <section className="relative overflow-hidden px-4 pb-14 pt-10 sm:px-6 sm:pb-20 sm:pt-24">
+      <Star className="left-[4%] top-[12%] hidden deco-spin sm:block" size={40} fill="#FFE566" />
+      <Sparkle className="left-[10%] bottom-[18%] hidden sm:block" size={26} fill="#7B6CF6" rotate={-12} />
       <Blob className="right-[3%] top-[8%] deco-bob" size={70} fill="#C4B5FD" />
       <DotTrail className="bottom-[8%] left-[42%] hidden lg:block" size={110} fill="#E8635A" />
       <Ring className="right-[8%] bottom-[12%] hidden md:block" size={52} />
 
-      <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="relative z-10 mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
         <div>
           <span className="tag tag-shadow bg-yellow">
             ETHOnline 2026 · ENS track + World track
@@ -29,11 +29,11 @@ export function Hero() {
             <br />
             <span className="relative inline-block">
               with you.
-              <Squiggle className="-bottom-4 left-0" size={240} fill="#E8635A" />
+              <Squiggle className="-bottom-3 left-0 h-auto w-[165px] sm:-bottom-4 sm:w-[240px]" size={240} fill="#E8635A" />
             </span>
           </h1>
 
-          <p className="mt-7 max-w-lg text-base leading-relaxed text-muted">
+          <p className="mt-6 max-w-lg text-base leading-relaxed text-muted sm:mt-7">
             herit hands your on-chain estate to named next-of-kin — but only once you stop
             proving you are alive. heirs are <strong className="text-ink">ENS subnames</strong>{" "}
             carrying real permissions, not raw addresses. liveness is a{" "}
@@ -51,7 +51,7 @@ export function Hero() {
             </Link>
           </div>
 
-          <ul className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium">
+          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium sm:mt-9">
             {HERO_TRUST_POINTS.map((point) => (
               <li key={point} className="flex items-center gap-2">
                 <IconCircle size="2xs" accent="bg-teal">

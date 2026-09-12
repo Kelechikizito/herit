@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useReadContracts } from "wagmi";
 import { TxStatus } from "@/components/estate/tx-status";
+import { AddressField } from "@/components/ui/address-field";
 import { CardHeading } from "@/components/ui/card-heading";
 import { Sparkle } from "@/components/ui/deco";
 import { FormField } from "@/components/ui/form-field";
@@ -19,6 +20,11 @@ import {
   parseHeir,
   unallocatedBps,
 } from "@/lib/estate";
+import {
+  isPendingResolution,
+  resolvedAddress,
+  useResolvedAddress,
+} from "@/lib/wagmi/use-resolved-address";
 import { pendingLabel, useTransaction } from "@/lib/wagmi/use-transaction";
 
 const EMPTY_INPUT: HeirInput = { label: "", address: "", relationship: "", sharePercent: "10" };
@@ -29,6 +35,9 @@ export function AddHeirForm({ estate, heirs }: { estate: Estate; heirs: readonly
   const tx = useTransaction();
   const [input, setInput] = useState<HeirInput>(EMPTY_INPUT);
   const [problem, setProblem] = useState<string | undefined>();
+
+  // `input.address` holds whatever was typed — an address, or a name still being resolved.
+  const resolution = useResolvedAddress(input.address);
 
   // Registry A's expiry caps every heir subname, and `MAX_HEIRS` is the registry's own cap.
   const bounds = useReadContracts({
@@ -46,6 +55,8 @@ export function AddHeirForm({ estate, heirs }: { estate: Estate; heirs: readonly
 
   const unlocked = estate.status === "unlocked";
   const disabled = unlocked || bounds.data === undefined || tx.busy;
+  // Holding submit over an outstanding lookup, so a fast enter key cannot mint against stale text.
+  const waiting = isPendingResolution(resolution);
 
   const set = (field: keyof HeirInput) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = field === "label" ? event.target.value.toLowerCase() : event.target.value;
@@ -58,7 +69,7 @@ export function AddHeirForm({ estate, heirs }: { estate: Estate; heirs: readonly
     if (bounds.data === undefined) return;
     const [expiry, maxHeirs] = bounds.data;
 
-    const parsed = parseHeir(input, {
+    const parsed = parseHeir({ ...input, address: resolvedAddress(resolution) ?? input.address }, {
       takenLabels: heirs.map((heir) => heir.label),
       allocatedBps: allocatedBps(heirs),
       maxHeirs: Number(maxHeirs),
@@ -113,21 +124,17 @@ export function AddHeirForm({ estate, heirs }: { estate: Estate; heirs: readonly
             />
           </FormField>
 
-          <FormField
+          <AddressField
             id="heir-address"
             label="controlling address"
-            hint="written as the addr(60) record, and given ROLE_HEIR_CLAIM on unlock."
-          >
-            <input
-              id="heir-address"
-              className="input mono"
-              placeholder="0x…"
-              autoComplete="off"
-              spellCheck={false}
-              value={input.address}
-              onChange={set("address")}
-            />
-          </FormField>
+            hint="an address, or an ENS name to resolve. written as the addr(60) record, and given ROLE_HEIR_CLAIM on unlock."
+            value={input.address}
+            onChange={(address) => {
+              setInput((current) => ({ ...current, address }));
+              setProblem(undefined);
+            }}
+            resolution={resolution}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <FormField id="heir-relationship" label="relationship">
@@ -159,9 +166,13 @@ export function AddHeirForm({ estate, heirs }: { estate: Estate; heirs: readonly
             <BudgetRow label="cap" value={`${BPS_DENOMINATOR} bps`} className="mt-1" />
           </div>
 
-          <button type="submit" className="btn w-full" disabled={disabled || tx.blocked !== undefined}>
+          <button
+            type="submit"
+            className="btn w-full"
+            disabled={disabled || waiting || tx.blocked !== undefined}
+          >
             <PlusIcon size={16} />
-            {pendingLabel(tx.phase) ?? "register heir"}
+            {pendingLabel(tx.phase) ?? (waiting ? "resolving name…" : "register heir")}
           </button>
         </fieldset>
 

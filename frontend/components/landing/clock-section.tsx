@@ -6,8 +6,8 @@ import { CLOCK_STAGES } from "@/lib/content/landing";
 /** Active → grace → unlocked, narrated. The transition is a pure function of the clock. */
 export function ClockSection() {
   return (
-    <section id="clock" className="relative scroll-mt-24 overflow-hidden px-4 py-20 sm:px-6">
-      <Sparkle className="left-[6%] top-[14%]" size={24} fill="#E8635A" rotate={-20} />
+    <section id="clock" className="relative scroll-mt-24 overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
+      <Sparkle className="left-[6%] top-[14%] hidden sm:block" size={24} fill="#E8635A" rotate={-20} />
       <DotTrail className="right-[5%] bottom-[10%] hidden md:block" size={100} fill="#7B6CF6" />
 
       <div className="relative z-10 mx-auto max-w-6xl">
@@ -23,7 +23,7 @@ export function ClockSection() {
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {CLOCK_STAGES.map((stage, index) => (
             <Reveal key={stage.name} delay={index * 80}>
-              <article className="card relative h-full p-6">
+              <article className="card relative h-full p-5 sm:p-6">
                 {index < CLOCK_STAGES.length - 1 ? <StageArrow /> : null}
 
                 <div className="flex items-center gap-3">

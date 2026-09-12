@@ -26,10 +26,12 @@ export const STATUS_COPY: Record<
 export const LOG_COLOR: Record<LogKind, string> = {
   opened: "bg-lavender",
   checkin: "bg-teal",
+  grace: "bg-yellow",
   heir: "bg-pink",
   unlock: "bg-coral",
   claim: "bg-purple",
   deposit: "bg-surface",
+  withdraw: "bg-ink",
 };
 
 /** The palette heirs are drawn from, in order, so an heir keeps its colour across screens. */

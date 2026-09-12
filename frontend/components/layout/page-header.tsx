@@ -12,6 +12,7 @@ export function PageHeader({
   description,
   starFill = "#FFE566",
   starRotate = -16,
+  level = 1,
   children,
 }: {
   eyebrow: string;
@@ -20,9 +21,13 @@ export function PageHeader({
   description?: React.ReactNode;
   starFill?: string;
   starRotate?: number;
+  /** 2 for a section heading under the page's own header, e.g. the estate chosen from a table. */
+  level?: 1 | 2;
   /** Trailing content, floated opposite the title — the dashboard's status pill. */
   children?: React.ReactNode;
 }) {
+  const Heading = level === 1 ? "h1" : "h2";
+
   return (
     <header className="relative">
       <Star
@@ -35,11 +40,13 @@ export function PageHeader({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-[0.72rem] font-bold tracking-wide text-muted">{eyebrow}</p>
-          <h1
-            className={`mt-1 text-3xl font-extrabold sm:text-4xl ${mono ? "mono" : ""}`}
+          <Heading
+            className={`mt-1 font-extrabold ${
+              level === 1 ? "text-3xl sm:text-4xl" : "text-2xl sm:text-3xl"
+            } ${mono ? "mono" : ""}`}
           >
             {title}
-          </h1>
+          </Heading>
           {description ? (
             <div className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
               {description}

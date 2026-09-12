@@ -15,7 +15,10 @@ export type Selection<T> =
 /** Where a switcher, or the list under a "not found", sends you for one entry. */
 export type EntryLink = { href: string; label: string };
 
-/** The estate named `label`, or the first one found when no label was asked for. */
+/**
+ * The estate named `label`, or the first entry when no label was asked for — the latest opened,
+ * since discovery lists estates newest first.
+ */
 export function selectEstate(
   entries: readonly OwnedEstate[],
   label: string | undefined,

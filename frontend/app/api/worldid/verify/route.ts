@@ -10,7 +10,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 import { herit } from "@/lib/contracts/addresses";
 import { estateIdOf, heirLabelhashOf, isLabel } from "@/lib/estate/ids";
-import { preflightCheckIn, preflightClaim } from "@/lib/server/preflight";
+import { preflightCheckIn, preflightClaim, preflightSetupCheckIn } from "@/lib/server/preflight";
 import { actionString, type SelfieCheckPurpose } from "@/lib/selfie-check";
 import { sepolia } from "@/lib/wagmi/chains";
 
@@ -33,8 +33,14 @@ const VERIFY_BASE = "https://developer.world.org/api/v4/verify";
 const SELFIE_IDENTIFIER = "selfie";
 const SELFIE_LEGACY_IDENTIFIER = "face";
 
-/** Well under the contract's 30-minute `MAX_ATTESTATION_LIFETIME`, which rejects a long expiry as hard as a stale one. */
-const ATTESTATION_TTL_SECONDS = 5 * 60;
+/**
+ * Long enough for setup, where the Selfie Check comes first and the transactions follow it: one
+ * prompt on a wallet that batches, one per step on a wallet that cannot. Still well under the
+ * contract's 30-minute `MAX_ATTESTATION_LIFETIME`, which rejects a long expiry as hard as a stale
+ * one. The attestation stays bound to one subject and one nonce, so the extra minutes buy an
+ * attacker nothing they did not already have.
+ */
+const ATTESTATION_TTL_SECONDS = 15 * 60;
 
 /** Field order must match `ATTESTATION_TYPEHASH` exactly, or the digest differs and recovery fails. */
 const ATTESTATION_TYPES = {
@@ -101,9 +107,17 @@ export async function POST(request: Request) {
     //    of costing the user gas. Nothing is recorded: the chain is the ledger, and an attestation
     //    that never lands leaves no trace. See lib/server/preflight.ts.
     const preflight =
-      purpose.kind === "checkin"
-        ? await preflightCheckIn({ estateId, subject, commitment })
-        : await preflightClaim({ estateId, subject, commitment, heirLabelhash });
+      purpose.kind === "claim"
+        ? await preflightClaim({ estateId, subject, commitment, heirLabelhash })
+        : purpose.setup
+          ? // The estate does not exist yet: the calls that open and configure it travel with this one.
+            await preflightSetupCheckIn({
+              estateId,
+              label: purpose.estateLabel,
+              subject,
+              commitment,
+            })
+          : await preflightCheckIn({ estateId, subject, commitment });
     if (!preflight.ok) throw new VerificationError(preflight.reason);
 
     const attestation = {
@@ -309,12 +323,16 @@ function parsePurpose(purpose: unknown): SelfieCheckPurpose {
   if (typeof purpose !== "object" || purpose === null) {
     throw new BadRequestError("purpose is required");
   }
-  const { kind, estateLabel, heirLabel } = purpose as Record<string, unknown>;
+  const { kind, estateLabel, heirLabel, setup } = purpose as Record<string, unknown>;
 
   if (!isLabel(estateLabel)) {
     throw new BadRequestError("estateLabel must be a lowercase ENS label");
   }
-  if (kind === "checkin") return { kind, estateLabel };
+  // `setup` chooses which pre-checks run, and nothing else. The attestation it leads to is the same
+  // one, and `LivenessAttestor` checks the grantor itself when the call executes.
+  if (kind === "checkin") {
+    return setup === true ? { kind, estateLabel, setup: true } : { kind, estateLabel };
+  }
   if (kind === "claim") {
     if (!isLabel(heirLabel)) {
       throw new BadRequestError("heirLabel must be a lowercase ENS label");

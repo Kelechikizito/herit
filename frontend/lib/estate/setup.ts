@@ -153,8 +153,12 @@ export function parseHeir(input: HeirInput, context: HeirContext): ParsedHeir {
   if (context.takenLabels.includes(label)) {
     return { ok: false, problem: `${label} is already an heir of this estate` };
   }
+  // Names are resolved before they reach here, so whatever arrives is expected to be an address.
   if (!isAddress(address) || isAddressEqual(address, zeroAddress)) {
-    return { ok: false, problem: "enter the heir's wallet address, 0x followed by 40 hex characters" };
+    return {
+      ok: false,
+      problem: "enter the heir's wallet address, or an ENS name that resolves to one",
+    };
   }
 
   const shareBps = percentToBps(input.sharePercent);

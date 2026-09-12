@@ -5,7 +5,7 @@ import { PROBLEMS } from "@/lib/content/landing";
 /** The two failure modes every dead-man's switch shares, each answered on the same card. */
 export function ProblemSection() {
   return (
-    <section className="relative overflow-hidden px-4 py-20 sm:px-6">
+    <section className="relative overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
       <Sparkle className="right-[6%] top-[10%]" size={28} fill="#FFE566" rotate={20} />
       <Star className="left-[5%] bottom-[12%]" size={30} fill="#4ECDC4" rotate={-15} />
 
@@ -42,12 +42,12 @@ function ProblemCard({
 }: (typeof PROBLEMS)[number]) {
   return (
     <article className="card h-full overflow-hidden">
-      <div className="border-b-2 border-ink bg-cream px-6 py-5">
+      <div className="border-b-2 border-ink bg-cream px-5 py-5 sm:px-6">
         <span className="tag bg-surface text-[0.7rem]">the usual failure</span>
         <h3 className="mt-3 text-lg">{broken}</h3>
         <p className="mt-2 text-sm leading-relaxed text-muted">{brokenBody}</p>
       </div>
-      <div className="px-6 py-5">
+      <div className="px-5 py-5 sm:px-6">
         <div className="flex items-start gap-4">
           <span className={`icon-box ${color}`}>
             <Icon size={22} />

@@ -5,7 +5,10 @@ export type NavLink = { href: string; label: string };
 export const MARKETING_LINKS: readonly NavLink[] = [
   { href: "/#how", label: "how it works" },
   { href: "/#clock", label: "the clock" },
+  { href: "/#estates", label: "live estates" },
   { href: "/#tracks", label: "tracks" },
+  { href: "/#contracts", label: "contracts" },
+  { href: "/roadmap", label: "roadmap" },
 ];
 
 export const APP_LINKS: readonly NavLink[] = [
@@ -22,6 +25,7 @@ export const FOOTER_COLUMNS: readonly { title: string; links: readonly NavLink[]
       { href: "/dashboard", label: "grantor dashboard" },
       { href: "/heirs", label: "manage heirs" },
       { href: "/claim", label: "heir claim" },
+      { href: "/roadmap", label: "docs & roadmap" },
     ],
   },
   {
@@ -29,6 +33,7 @@ export const FOOTER_COLUMNS: readonly { title: string; links: readonly NavLink[]
     links: [
       { href: "https://ens.domains", label: "ENSv2 registries" },
       { href: "https://world.org/world-id", label: "World ID" },
+      { href: "https://thegraph.com", label: "The Graph" },
       { href: "https://book.getfoundry.sh", label: "Foundry" },
       { href: "https://sepolia.etherscan.io", label: "Sepolia" },
     ],
