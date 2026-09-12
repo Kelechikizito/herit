@@ -42,14 +42,20 @@ import { explorerAddressUrl } from "@/lib/wagmi/use-transaction";
 
 const TITLE = "live estates";
 
-/** Shared by the header row and every estate row, so the columns line up. */
+/**
+ * Shared by the header row and every estate row, so the columns line up.
+ *
+ * Six columns only stop truncating each other around `lg`; under it the row falls back to the
+ * two-up grid each cell is written for, with the header strip hidden and every cell carrying its
+ * own caption underneath.
+ */
 const COLUMNS =
-  "sm:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_6.5rem_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)]";
+  "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_6.5rem_minmax(0,1fr)_minmax(0,0.85fr)_minmax(0,0.85fr)]";
 
 export function EstatesExplorer() {
   return (
-    <section id="estates" className="relative scroll-mt-24 overflow-hidden px-4 py-20 sm:px-6">
-      <Star className="left-[5%] top-[10%]" size={34} fill="#4ECDC4" rotate={-8} />
+    <section id="estates" className="relative scroll-mt-24 overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
+      <Star className="left-[5%] top-[10%] hidden sm:block" size={34} fill="#4ECDC4" rotate={-8} />
       <Blob className="-right-8 bottom-[18%]" size={76} fill="#FFE566" />
 
       <div className="relative z-10 mx-auto max-w-6xl">
@@ -148,7 +154,7 @@ function Table({ rows, subtitle }: { rows: readonly ExplorerRow[]; subtitle: str
       <PanelCard title={TITLE} subtitle={subtitle} className="mt-6">
         <div
           aria-hidden="true"
-          className={`hidden gap-x-4 border-b-2 border-ink px-6 py-2.5 text-[0.7rem] font-bold tracking-wide text-muted sm:grid ${COLUMNS}`}
+          className={`hidden gap-x-4 border-b-2 border-ink px-6 py-2.5 text-[0.7rem] font-bold tracking-wide text-muted lg:grid ${COLUMNS}`}
         >
           <span>estate</span>
           <span>opened by</span>
@@ -171,11 +177,11 @@ function Table({ rows, subtitle }: { rows: readonly ExplorerRow[]; subtitle: str
                   onClick={() => setOpen(expanded ? null : row.label)}
                   aria-expanded={expanded}
                   aria-controls={panelId}
-                  className={`grid w-full grid-cols-2 items-center gap-x-4 gap-y-3 px-6 py-3.5 text-left transition-colors ${COLUMNS} ${
+                  className={`grid w-full grid-cols-2 items-center gap-x-4 gap-y-3 px-5 py-3.5 text-left transition-colors sm:px-6 ${COLUMNS} ${
                     expanded ? "bg-cream" : "hover:bg-cream focus-visible:bg-cream"
                   }`}
                 >
-                  <span className="col-span-2 flex min-w-0 items-center gap-2 sm:col-span-1">
+                  <span className="col-span-2 flex min-w-0 items-center gap-2 lg:col-span-1">
                     <ChevronDownIcon
                       size={15}
                       className={`flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -188,9 +194,9 @@ function Table({ rows, subtitle }: { rows: readonly ExplorerRow[]; subtitle: str
                     </span>
                   </span>
 
-                  <span className="mono min-w-0 truncate text-sm font-bold">
-                    {shortAddress(row.grantor)}
-                  </span>
+                  {/* The one cell that is only a value: below `lg` the header strip that
+                      named it is hidden, so it names itself. */}
+                  <Cell main={shortAddress(row.grantor)} sub="opened by" subOnly="mobile" mono />
 
                   <span>
                     <StatusPill status={row.status} size="sm" />
@@ -231,7 +237,7 @@ function Totals({ rows }: { rows: readonly ExplorerRow[] }) {
   const unlocked = count("unlocked");
 
   return (
-    <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatBox
         label="estates opened"
         value={String(rows.length)}
@@ -260,7 +266,7 @@ function Detail({ id, row }: { id: string; row: ExplorerRow }) {
   const roster = useHeirRoster(row.estateId);
 
   return (
-    <div id={id} className="border-t-2 border-dashed border-ink/25 bg-cream px-6 py-5">
+    <div id={id} className="border-t-2 border-dashed border-ink/25 bg-cream px-5 py-5 sm:px-6">
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
         <div>
           <p className="text-[0.72rem] font-bold tracking-wide text-muted">heirs and shares</p>
@@ -341,11 +347,26 @@ function ExplorerLink({ address }: { address: string }) {
   );
 }
 
-function Cell({ main, sub, mono = false }: { main: string; sub: string; mono?: boolean }) {
+function Cell({
+  main,
+  sub,
+  /** "mobile" for a sub that only stands in for the hidden column header. */
+  subOnly,
+  mono = false,
+}: {
+  main: string;
+  sub: string;
+  subOnly?: "mobile";
+  mono?: boolean;
+}) {
   return (
     <span className="min-w-0">
       <span className={`block truncate text-sm font-bold ${mono ? "mono" : ""}`}>{main}</span>
-      <span className="block truncate text-[0.7rem] text-muted">{sub}</span>
+      <span
+        className={`block truncate text-[0.7rem] text-muted ${subOnly === "mobile" ? "lg:hidden" : ""}`}
+      >
+        {sub}
+      </span>
     </span>
   );
 }

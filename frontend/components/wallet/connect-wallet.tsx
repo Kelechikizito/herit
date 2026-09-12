@@ -22,9 +22,16 @@ export function ConnectWallet() {
   if (status !== "connected") {
     return (
       <>
-        <button type="button" className="btn btn-sm" onClick={() => setPickerOpen(true)}>
+        <button
+          type="button"
+          className="btn btn-sm whitespace-nowrap"
+          onClick={() => setPickerOpen(true)}
+        >
           <WalletIcon size={14} />
-          connect wallet
+          {/* The navbar also carries a logo and a hamburger — on the narrowest phones the
+              wallet button gives up its noun rather than the bar giving up a row. */}
+          <span className="hidden min-[380px]:inline">connect wallet</span>
+          <span className="min-[380px]:hidden">connect</span>
         </button>
         <WalletPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
       </>
@@ -40,12 +47,21 @@ function WrongNetwork() {
   return (
     <button
       type="button"
-      className="btn btn-yellow btn-sm"
+      className="btn btn-yellow btn-sm whitespace-nowrap"
       onClick={switchToSepolia}
       disabled={isSwitching}
     >
       <AlertIcon size={14} />
-      {isSwitching ? "switching…" : `switch to ${sepolia.name.toLowerCase()}`}
+      {isSwitching ? (
+        "switching…"
+      ) : (
+        <>
+          <span className="hidden min-[380px]:inline">
+            switch to {sepolia.name.toLowerCase()}
+          </span>
+          <span className="min-[380px]:hidden">switch</span>
+        </>
+      )}
     </button>
   );
 }

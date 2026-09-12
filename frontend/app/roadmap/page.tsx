@@ -29,7 +29,11 @@ export default function RoadmapPage() {
               the docs, and{" "}
               <span className="relative inline-block">
                 what happens next
-                <Squiggle className="-bottom-4 left-0" size={280} fill="#E8635A" />
+                <Squiggle
+                  className="-bottom-3 left-0 h-auto w-[150px] sm:-bottom-4 sm:w-[280px]"
+                  size={280}
+                  fill="#E8635A"
+                />
               </span>
             </h1>
             <p className="mt-9 max-w-2xl text-base leading-relaxed text-muted">

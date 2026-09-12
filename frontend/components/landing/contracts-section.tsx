@@ -6,7 +6,7 @@ import { explorerAddressUrl } from "@/lib/wagmi/explorer";
 /** The contract set, and where each one stands in the build. */
 export function ContractsSection() {
   return (
-    <section id="contracts" className="relative scroll-mt-24 overflow-hidden px-4 py-20 sm:px-6">
+    <section id="contracts" className="relative scroll-mt-24 overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
       <div className="relative z-10 mx-auto max-w-6xl">
         <Reveal>
           <span className="tag tag-shadow bg-pink">under the hood</span>

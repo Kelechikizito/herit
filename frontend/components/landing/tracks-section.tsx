@@ -5,7 +5,7 @@ import { TRACKS } from "@/lib/content/landing";
 /** Why both hackathon tracks are load-bearing rather than badges. */
 export function TracksSection() {
   return (
-    <section id="tracks" className="relative scroll-mt-24 overflow-hidden px-4 py-20 sm:px-6">
+    <section id="tracks" className="relative scroll-mt-24 overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
       <Star className="right-[4%] top-[12%]" size={36} fill="#FFE566" rotate={12} />
       <Blob className="-left-10 bottom-[14%]" size={80} fill="#C4B5FD" />
 
@@ -41,7 +41,7 @@ function TrackCard({
 }: (typeof TRACKS)[number]) {
   return (
     <article className="card h-full overflow-hidden">
-      <div className={`flex items-center gap-3 border-b-2 border-ink ${accent} px-6 py-5`}>
+      <div className={`flex items-center gap-3 border-b-2 border-ink ${accent} px-5 py-5 sm:px-6`}>
         <span className="icon-box bg-surface">
           <Icon size={22} />
         </span>
@@ -50,7 +50,7 @@ function TrackCard({
           <h3 className="mt-0.5">{title}</h3>
         </div>
       </div>
-      <ul className="space-y-3.5 px-6 py-6">
+      <ul className="space-y-3.5 px-5 py-5 sm:px-6 sm:py-6">
         {points.map((point) => (
           <li key={point} className="flex gap-3 text-sm leading-relaxed text-muted">
             <span

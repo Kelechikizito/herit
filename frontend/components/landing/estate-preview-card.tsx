@@ -37,7 +37,7 @@ export function EstatePreviewCard() {
     <div className="relative">
       <Star className="-left-5 -top-5 z-20" size={34} fill="#F9A8B8" rotate={18} />
 
-      <div className="card relative z-10 overflow-hidden p-6">
+      <div className="card relative z-10 overflow-hidden p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[0.72rem] font-bold tracking-wide text-muted">estate</p>

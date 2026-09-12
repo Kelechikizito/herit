@@ -191,3 +191,21 @@ export function WalletIcon({ className, size = 18 }: IconProps) {
     </svg>
   );
 }
+
+/** The mobile navigation toggle, in its closed state. */
+export function MenuIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg className={className} {...base(size)}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+/** The same toggle once the menu is open. */
+export function CloseIcon({ className, size = 18 }: IconProps) {
+  return (
+    <svg className={className} {...base(size)}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}

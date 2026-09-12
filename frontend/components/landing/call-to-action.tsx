@@ -6,13 +6,13 @@ import { ConnectCta } from "@/components/wallet/connect-cta";
 /** The closing panel. */
 export function CallToAction() {
   return (
-    <section className="relative overflow-hidden px-4 pb-20 pt-8 sm:px-6">
+    <section className="relative overflow-hidden px-4 pb-14 pt-4 sm:px-6 sm:pb-20 sm:pt-8">
       <div className="relative mx-auto max-w-6xl">
         <Star className="-left-4 -top-4 z-20" size={40} fill="#FFE566" rotate={-14} />
         <Sparkle className="-right-2 -top-2 z-20" size={30} fill="#E8635A" rotate={16} />
 
         <Reveal>
-          <div className="relative overflow-hidden rounded-[14px] border-2 border-ink bg-lavender px-6 py-14 text-center shadow-brut-lg sm:px-10">
+          <div className="relative overflow-hidden rounded-[14px] border-2 border-ink bg-lavender px-5 py-10 text-center shadow-brut-lg sm:px-10 sm:py-14">
             <p className="font-[family-name:var(--font-caveat)] text-2xl font-bold">
               takes about four minutes
             </p>

@@ -5,7 +5,7 @@ import { JOURNEY_STEPS } from "@/lib/content/landing";
 /** The four steps of setup, told once here and walked for real in `/setup`. */
 export function HowItWorksSection() {
   return (
-    <section id="how" className="relative scroll-mt-24 overflow-hidden px-4 py-20 sm:px-6">
+    <section id="how" className="relative scroll-mt-24 overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
       <Blob className="-left-8 top-[20%]" size={90} fill="#F9A8B8" />
       <Star className="right-[8%] top-[8%] deco-spin" size={34} fill="#7B6CF6" />
 
@@ -18,7 +18,7 @@ export function HowItWorksSection() {
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           {JOURNEY_STEPS.map((step, index) => (
             <Reveal key={step.title} delay={index * 70}>
-              <article className="card-flat card-lift h-full p-6">
+              <article className="card-flat card-lift h-full p-5 sm:p-6">
                 <div className="flex items-center gap-3">
                   <span className={`icon-box ${step.color}`}>
                     <step.icon size={22} />
