@@ -5,6 +5,23 @@ Sepolia beta set, which moves as pre-mainnet fixes land.
 
 Chain id `11155111`. Reference by the `sepolia_eth` alias in `foundry.toml`, never a raw URL.
 
+## Herit's names do not appear in the ENS app
+
+**This is expected, and not a sign that registration failed.** The official ENS app indexes the
+regular Sepolia **beta** set. Herit registers into the **frozen hackathon** set, which is a
+different group of contracts entirely. A name registered in one is invisible to the other, so
+looking up `herit.eth` or any `<grantor>.herit.eth` on the ENS website returns nothing no matter
+how correct the registration was.
+
+The chain is the source of truth. To confirm a name really exists, read the registry directly:
+
+```bash
+make register-root-check       # herit.eth: status, owner, expiry — no key needed
+```
+
+`status 2` is `REGISTERED`. The same applies to grantor and heir subnames: read them through
+registry A and the estate registry, never through the ENS app.
+
 ## The ones Herit uses
 
 | Contract | Address | Role in Herit |
