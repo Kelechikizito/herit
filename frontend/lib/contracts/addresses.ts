@@ -37,6 +37,11 @@ export const ens = {
   /** Holds every heir's `addr(60)`, `herit.relationship` and `herit.share` records. Deployed at Checkpoint 5. */
   resolver: "0x42fA2a1582a89E18d0a54d8dC65157172489EBb1",
   /**
+   * ENSv2's `.eth` registry from the frozen hackathon set, and the parent `herit.eth` itself is
+   * registered in. Nothing calls it — it is here so the landing page can link the root of the tree.
+   */
+  ethRegistry: "0x1d78834d97C1D7b1a38C1DEdbD1a287cFEd3971e",
+  /**
    * ENSv2's shared label database, from the frozen hackathon set. Turns a labelhash back into its
    * label — the gate keeps its own label mapping private, so this is how an estate id becomes a name.
    */

@@ -10,6 +10,7 @@ import {
   UnlockIcon,
   VaultIcon,
 } from "@/components/ui/icons";
+import { ens, herit } from "@/lib/contracts/addresses";
 
 type Icon = ComponentType<IconProps>;
 
@@ -144,36 +145,73 @@ export const TRACKS: readonly {
   },
 ];
 
-/** The contract set from ARCHITECTURE.md §6.2, with where each one stands. */
+/**
+ * The contract set from ARCHITECTURE.md §6.2, each with its Sepolia address.
+ *
+ * Addresses come from `lib/contracts/addresses.ts` rather than being retyped here, so a redeploy
+ * updates the landing page and the app's call sites in one edit.
+ */
 export const CONTRACTS: readonly {
   name: string;
   body: string;
+  address: `0x${string}`;
   state: "deployed" | "in progress";
 }[] = [
   {
     name: "AccessControlGate",
     body: "opens estates, registers heirs, grants the claim role. holds root roles on every estate registry and never holds funds.",
+    address: herit.accessControlGate,
     state: "deployed",
   },
   {
     name: "HeritRegistry",
     body: "the per-estate state machine and check-in clock. the only caller permitted to unlock an heir.",
-    state: "in progress",
+    address: herit.heritRegistry,
+    state: "deployed",
   },
   {
     name: "LivenessAttestor",
     body: "verifies the backend's EIP-712 attestation that a Selfie Check passed, replay-protected by action, nonce and expiry.",
-    state: "in progress",
+    address: herit.livenessAttestor,
+    state: "deployed",
   },
   {
     name: "HeritVault",
     body: "opt-in escrow for exactly the assets you intend to will. ETH and ERC-20 for the hackathon build.",
-    state: "in progress",
+    address: herit.heritVault,
+    state: "deployed",
   },
   {
     name: "ClaimManager",
     body: "the heir-facing entrypoint. checks unlock, attestation and subname control, then releases the share.",
-    state: "in progress",
+    address: herit.claimManager,
+    state: "deployed",
+  },
+];
+
+/**
+ * The ENS layer every estate hangs off. Deployed once at Checkpoint 5 and left alone by a Herit
+ * redeploy, which is why it is listed apart from the five above.
+ */
+export const ENS_LAYER: readonly {
+  name: string;
+  body: string;
+  address: `0x${string}`;
+}[] = [
+  {
+    name: "herit.eth registry",
+    body: "registry A, attached as the subregistry of herit.eth. one subname per grantor — alice.herit.eth lives here.",
+    address: ens.grantorRegistry,
+  },
+  {
+    name: "PermissionedResolver",
+    body: "holds every heir's addr(60), herit.relationship and herit.share records across all estates.",
+    address: ens.resolver,
+  },
+  {
+    name: "ETHRegistry",
+    body: "ENSv2's .eth registry from the frozen hackathon deployment. herit.eth itself is registered here.",
+    address: ens.ethRegistry,
   },
 ];
 

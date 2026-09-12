@@ -7,6 +7,7 @@ export const MARKETING_LINKS: readonly NavLink[] = [
   { href: "/#clock", label: "the clock" },
   { href: "/#estates", label: "live estates" },
   { href: "/#tracks", label: "tracks" },
+  { href: "/#contracts", label: "contracts" },
 ];
 
 export const APP_LINKS: readonly NavLink[] = [
