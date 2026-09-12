@@ -163,6 +163,10 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof VerificationError) {
+      // Logged as well as returned: IDKit discards the body of a rejected handleVerify and reports
+      // a bare `failed_by_host_app`, so without this line the reason exists nowhere the developer
+      // can read it. Safe to print — it describes the proof or the estate, never a key.
+      console.error(`[worldid/verify] rejected: ${error.message}`);
       return Response.json({ error: error.message }, { status: 400 });
     }
     if (error instanceof ConfigError) {
@@ -196,23 +200,46 @@ async function verifyWithWorld(rpId: string, action: string, result: unknown): P
     throw new VerificationError(detail);
   }
 
-  const verified = payload as { action?: string; responses?: unknown[] };
+  const verified = payload as { action?: string };
+  const proof = result as { action?: string; responses?: unknown[] };
 
   // The proof must be for the action we asked about, or a proof for another estate would pass.
+  // Checked on both sides when the verifier echoes one: the result's `action` is only trustworthy
+  // because the verifier just validated the proof against it, so a forged field fails there first.
   if (verified.action !== undefined && verified.action !== action) {
     throw new VerificationError("proof was issued for a different action");
   }
+  if (proof.action !== undefined && proof.action !== action) {
+    throw new VerificationError("proof was issued for a different action");
+  }
 
+  // The nullifier comes out of the IDKit result, not out of the verifier's reply. Both
+  // `ResponseItemV3` and `ResponseItemV4` in @worldcoin/idkit-core declare `identifier` and
+  // `nullifier`; the v4 verify endpoint's own response shape is undocumented and does not carry
+  // them. Reading it here is sound because the proof containing it was just verified.
+  //
   // Read the Selfie Check credential specifically, never just the first response. `face` is the
   // legacy alias for the same credential — accepted on the way in, never constructed on the way out.
-  const selfie = (verified.responses ?? []).find((item): item is { identifier: string; nullifier?: string } => {
+  const responses = Array.isArray(proof.responses) ? proof.responses : [];
+  const selfie = responses.find((item): item is { identifier: string; nullifier?: string } => {
     if (typeof item !== "object" || item === null) return false;
     const identifier = (item as { identifier?: unknown }).identifier;
     return identifier === SELFIE_IDENTIFIER || identifier === SELFIE_LEGACY_IDENTIFIER;
   });
 
   if (typeof selfie?.nullifier !== "string" || selfie.nullifier.length === 0) {
-    throw new VerificationError("no selfie check nullifier in the verified proof");
+    // Name what was actually there. Credential identifiers are type names, not personal data, and
+    // a bare "not found" is what cost an evening the first time this fired.
+    const seen = responses
+      .map((item) =>
+        typeof item === "object" && item !== null
+          ? String((item as { identifier?: unknown }).identifier)
+          : "?",
+      )
+      .join(", ");
+    throw new VerificationError(
+      `no selfie check nullifier in the verified proof (credentials returned: ${seen || "none"})`,
+    );
   }
   return selfie.nullifier;
 }
