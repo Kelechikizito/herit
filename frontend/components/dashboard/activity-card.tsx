@@ -40,7 +40,7 @@ function Feed({ activity, context }: { activity: EstateActivity; context: Activi
   const entries = describeActivity(activity.records, context);
   const subtitle = activity.hasIndexingErrors
     ? "the indexer hit an error — this feed may be behind the chain"
-    : `indexed by the graph through block ${activity.indexedBlock.toLocaleString("en-US")}`;
+    : `indexed by The Graph through block ${activity.indexedBlock.toLocaleString("en-US")}`;
 
   return (
     <PanelCard title={TITLE} subtitle={subtitle}>

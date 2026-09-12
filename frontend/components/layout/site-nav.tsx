@@ -25,9 +25,12 @@ export function SiteNav({ variant = "marketing" }: { variant?: "marketing" | "ap
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 rounded-[10px] border-2 border-ink bg-surface px-4 py-3 shadow-brut sm:px-6">
         <Logo />
 
-        <div className="hidden items-center gap-1 md:flex">
+        {/* The marketing row carries six section links, which only clear the logo and the two
+            calls to action from `lg` up; the app row is three links and fits a tablet. */}
+        <div className={`hidden items-center gap-1 ${app ? "md:flex" : "lg:flex"}`}>
           {links.map((link) => {
-            const active = app && pathname === link.href;
+            // Hash links never match a pathname, so this only ever lights a real route.
+            const active = pathname === link.href;
             return (
               <Link
                 key={link.href}

@@ -57,9 +57,10 @@ export function EstatesExplorer() {
           <span className="tag tag-shadow bg-teal">live on sepolia</span>
           <h2 className="mt-5 max-w-2xl">every estate opened so far</h2>
           <p className="mt-4 max-w-xl text-base text-muted">
-            not a screenshot. each row is read from the herit contracts as you look at it — who
-            opened the estate, where its clock stands, and which ENS subnames are waiting on it.
-            open a row to see the heirs and their shares.
+            not a screenshot. <strong className="text-ink">The Graph</strong> indexes every
+            estate herit opens, and each row is then filled in from the contracts as you look at
+            it — where the clock stands, and which ENS subnames are waiting on it. open a row to
+            see the heirs and their shares.
           </p>
         </Reveal>
 
@@ -103,7 +104,7 @@ function Rows({ indexed }: { indexed: AllEstates }) {
 
   const subtitle = indexed.hasIndexingErrors
     ? "the indexer hit an error — this list may be missing recent estates"
-    : `indexed by the graph through block ${indexed.indexedBlock.toLocaleString("en-US")} · live values read from sepolia`;
+    : `indexed by The Graph through block ${indexed.indexedBlock.toLocaleString("en-US")} · live values read from sepolia`;
 
   if (indexed.estates.length === 0) {
     return (
